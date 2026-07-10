@@ -1,0 +1,79 @@
+# Copyright lowRISC Contributors (COSMIC project).
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+# mark this job as part of concurrency group named according to the Git ref (i.e. branch name)
+# cancel-in-progress:true
+# this mean if we get multiple pushes/PRs in quick succession it will only run CI on the latest one, no need to test every intermediate step
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vivado-test:
+    runs-on: ["ubuntu-22.04-vivado"]
+
+    steps:
+      # check out the repo so we can run tests on it
+      - uses: actions/checkout@v5
+
+      # Install UV for running FuseSoC
+      - uses: astral-sh/setup-uv@v1
+        with:
+          version: "0.11.14"
+
+      - name: Run Vivado tests
+        run: |
+          module load xilinx/vivado/2021.1
+          uv run fusesoc run --target=sim lowrisc:mocha:ethernet
+          grep "ALL TESTS PASSED" build/lowrisc_mocha_ethernet_0/sim-xsim/xsim.log
+        # grep will exit with non-zero status if that string isn't found in the log
+
+  cocotb-test:
+    runs-on: ["ubuntu-22.04-vivado"]
+
+    defaults:
+      run:
+        shell: "sudo nix develop -c bash -e {0}"
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v1
+        with:
+          version: "0.11.14"
+
+      - name: Prepare Nix environment
+        run: |
+          true
+        # Does nothing but by using the default shell (specified above) Nix will pull in everything needed
+
+      - name: Run CocoTB tests
+        run: |
+          uv run fusesoc run --target=sim lowrisc:mocha:axi_ethernet
+          tail -n 50 `find -name coco.log`
+          grep "FAIL=0" `find -name coco.log`
+        # Grep will find the string FAIL=0 if the tests all passed, otherwise it gives a positive exit code
+        # TODO this is a pretty ugly approach to reporting test results
+
+  # TODO add more checks. In ascending order of significance:
+  # - lint
+  # - trial synthesis (to ensure RTL is synthesizable)
+  # - post-synthesis simulation (to ensure synthesis doesn't break functionality)
+  # - bitstream build and deploy to an FPGA for testing (will also require a test environment, so could integrate with a simple core)
+  # Some of these could be for PRs, some nightly, some on demand
+  # Also would be best to detect (or mark) trivial changes (comments, whitespace, docs) and skip tests accordingly
+
+  # Documentation flows?
+  #   - Automatically build some docs (e.g. from RDL)
+  #   - Check docs for spelling errors, Markdown syntax, broken links, missing assets
+  # Consider using a Nix shell instead of venv and module load
+  # but not sure how that works with Vivado
