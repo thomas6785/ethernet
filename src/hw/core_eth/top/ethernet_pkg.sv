@@ -65,6 +65,17 @@ package ethernet_pkg;
     localparam TX_DATA_BUF_ADDR_W    = $clog2(TX_DATA_BUF_BYTES);   // byte address width
     localparam TX_DATA_BUF_ADDR_LSBS = $clog2(TX_DATA_BUF_WIDTH/8); // number of LSbs to ignore for word addressing
 
+    ///////////////////////////////
+    // CSRs address space params //
+    ///////////////////////////////
+    localparam CSR_WIDTH = 32;
+    localparam CSR_DEPTH = 32; // number of 32-bit registers. 32 is probably plenty
+
+    localparam CSR_BYTES     = CSR_DEPTH*CSR_WIDTH/8;
+    localparam CSR_ADDR_MSBS = $clog2(CSR_DEPTH);
+    localparam CSR_ADDR_W    = $clog2(CSR_BYTES);   // byte address width
+    localparam CSR_ADDR_LSBS = $clog2(CSR_WIDTH/8); // number of LSbs to ignore for word addressing
+
     // Enum: reason for capturing a packet
     typedef enum logic [1:0] {
         MAC_MATCHES     = 0,
@@ -117,4 +128,34 @@ package ethernet_pkg;
     typedef struct packed {
         logic [10:0] packet_len;
     } tx_config_t;
+
+    typedef struct packed {
+        logic loopback_inject_err;
+        logic loopback;
+    } mac_config_t;
+
+    typedef struct packed {
+        logic tx_busy;
+    } mac_status_t;
+
+    // RGMII interface for connecting Ethernet MAC to PHY
+    typedef struct packed {
+        logic       clk;
+        logic       ctl;
+        logic [3:0] d;
+    } eth_rgmii_rx_t;
+
+    typedef struct packed {
+        logic        clk;
+        logic        en;
+        logic [3:0]  d;
+    } eth_rgmii_tx_t;
+
+    typedef logic eth_rgmii_mdio_in_t;
+
+    typedef struct packed {
+        logic o;
+        logic oen;
+        logic c;
+    } eth_rgmii_mdio_out_t;
 endpackage
