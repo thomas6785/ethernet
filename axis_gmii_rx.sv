@@ -26,7 +26,7 @@ Author: Alex Forencich <alex@alexforencich.com>
 Date:   Thu Nov 8 13:15:47 2018 -0800
 
 Modified by Jonathan Kimmitt to extract CRC bytes
- 
+
 lfsr submodule renamed rgmii_lfsr to avoid name clash with main project
 */
 
@@ -209,6 +209,7 @@ always @* begin
                         error_bad_fcs_next = 1'b1;
                     end
                     crc_cnt_next = 2'b0;
+                    m_axis_tlast_next = 1'b1;
                     state_next = STATE_CRC;
                 end else begin
                     state_next = STATE_PAYLOAD;
@@ -219,13 +220,12 @@ always @* begin
                 update_crc = 1'b1;
 
                 m_axis_tdata_next = gmii_rxd_d4;
-                m_axis_tvalid_next = 1'b1;
+                m_axis_tvalid_next = 1'b0;
 
                 crc_cnt_next = crc_cnt + 1;
                 if (&crc_cnt) begin
                     // end of packet + CRC bytes
                     fcs_next = crc_next;
-                    m_axis_tlast_next = 1'b1;
                     state_next = STATE_IDLE;
                 end else begin
                     fcs_next = 32'b0;
@@ -246,7 +246,7 @@ always @* begin
     end
 end
 
-always @(posedge clk) begin
+always @(posedge clk or posedge rst) begin
     if (rst) begin
         state_reg <= STATE_IDLE;
 

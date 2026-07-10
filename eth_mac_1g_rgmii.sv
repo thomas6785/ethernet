@@ -30,18 +30,18 @@ THE SOFTWARE.
 module eth_mac_1g_rgmii #
 (
     // target ("SIM", "GENERIC", "XILINX", "ALTERA")
-    parameter TARGET = "GENERIC",
+    parameter string TARGET = "GENERIC",
     // IODDR style ("IODDR", "IODDR2")
     // Use IODDR for Virtex-4, Virtex-5, Virtex-6, 7 Series, Ultrascale
     // Use IODDR2 for Spartan-6
-    parameter IODDR_STYLE = "IODDR2",
+    parameter string IODDR_STYLE = "IODDR2",
     // Clock input style ("BUFG", "BUFR", "BUFIO", "BUFIO2")
     // Use BUFR for Virtex-5, Virtex-6, 7-series
     // Use BUFG for Ultrascale
     // Use BUFIO2 for Spartan-6
-    parameter CLOCK_INPUT_STYLE = "BUFIO2",
+    parameter string CLOCK_INPUT_STYLE = "BUFIO2",
     // Use 90 degree clock for RGMII transmit ("TRUE", "FALSE")
-    parameter USE_CLK90 = "TRUE",
+    parameter string USE_CLK90 = "TRUE",
     parameter ENABLE_PADDING = 1,
     parameter MIN_FRAME_LENGTH = 64
 )
@@ -94,7 +94,9 @@ module eth_mac_1g_rgmii #
     /*
      * Configuration
      */
-    input wire [7:0]  ifg_delay
+    input wire [7:0]  ifg_delay,
+    input wire loopback_i,
+    input wire loopback_inject_err_i
 );
 
 wire [7:0]  mac_gmii_rxd;
@@ -170,7 +172,7 @@ always @(posedge gtx_clk) begin
         speed_reg <= 2'b10;
     end else begin
         rx_speed_count_1 <= rx_speed_count_1 + 1;
-        
+
         if (rx_prescale_sync_2 ^ rx_prescale_sync_3) begin
             rx_speed_count_2 <= rx_speed_count_2 + 1;
         end
@@ -186,7 +188,7 @@ always @(posedge gtx_clk) begin
             // prescaled count overflow - 100M or 1000M
             rx_speed_count_1 <= 0;
             rx_speed_count_2 <= 0;
-            if (rx_speed_count_1[6:5]) begin
+            if (|rx_speed_count_1[6:5]) begin
                 // large reference count - 100M
                 speed_reg <= 2'b01;
             end else begin
@@ -230,7 +232,9 @@ rgmii_phy_if_inst (
     .phy_rgmii_txd(rgmii_txd),
     .phy_rgmii_tx_ctl(rgmii_tx_ctl),
 
-    .speed(speed)
+    .speed(speed),
+    .loopback_i(loopback_i),
+    .loopback_inject_err_i(loopback_inject_err_i)
 );
 
 eth_mac_1g #(

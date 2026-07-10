@@ -30,11 +30,11 @@ THE SOFTWARE.
 module iddr #
 (
     // target ("SIM", "GENERIC", "XILINX", "ALTERA")
-    parameter TARGET = "GENERIC",
+    parameter string TARGET = "GENERIC",
     // IODDR style ("IODDR", "IODDR2")
     // Use IODDR for Virtex-4, Virtex-5, Virtex-6, 7 Series, Ultrascale
     // Use IODDR2 for Spartan-6
-    parameter IODDR_STYLE = "IODDR2",
+    parameter string IODDR_STYLE = "IODDR2",
     // Width of register in bits
     parameter WIDTH = 1
 )

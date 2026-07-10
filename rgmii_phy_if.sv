@@ -30,18 +30,18 @@ THE SOFTWARE.
 module rgmii_phy_if #
 (
     // target ("SIM", "GENERIC", "XILINX", "ALTERA")
-    parameter TARGET = "GENERIC",
+    parameter string TARGET = "GENERIC",
     // IODDR style ("IODDR", "IODDR2")
     // Use IODDR for Virtex-4, Virtex-5, Virtex-6, 7 Series, Ultrascale
     // Use IODDR2 for Spartan-6
-    parameter IODDR_STYLE = "IODDR2",
+    parameter string IODDR_STYLE = "IODDR2",
     // Clock input style ("BUFG", "BUFR", "BUFIO", "BUFIO2")
     // Use BUFR for Virtex-5, Virtex-6, 7-series
     // Use BUFG for Ultrascale
     // Use BUFIO2 for Spartan-6
-    parameter CLOCK_INPUT_STYLE = "BUFIO2",
+    parameter string CLOCK_INPUT_STYLE = "BUFIO2",
     // Use 90 degree clock for RGMII transmit ("TRUE", "FALSE")
-    parameter USE_CLK90 = "TRUE"
+    parameter string USE_CLK90 = "TRUE"
 )
 (
     input  wire        clk,
@@ -76,8 +76,25 @@ module rgmii_phy_if #
     /*
      * Control
      */
-    input  wire [1:0]  speed
+    input  wire [1:0]  speed,
+    input  wire  loopback_i,
+    input  wire  loopback_inject_err_i
 );
+
+// Implement loopback logic
+// declare the 'real' signals coming from the RX PHY
+logic mac_gmii_rx_clk_real;
+logic mac_gmii_rx_rst_real;
+logic [7:0] mac_gmii_rxd_real;
+logic mac_gmii_rx_dv_real;
+logic mac_gmii_rx_er_real;
+
+// MUX between the 'real' signals and the loopback signals
+assign mac_gmii_rx_clk  = loopback_i ? ~clk                                         : mac_gmii_rx_clk_real;
+assign mac_gmii_rx_rst  = loopback_i ? mac_gmii_tx_rst                              : mac_gmii_rx_rst_real;
+assign mac_gmii_rxd     = loopback_i ? mac_gmii_txd ^ {7'b0,loopback_inject_err_i}  : mac_gmii_rxd_real;
+assign mac_gmii_rx_dv   = loopback_i ? mac_gmii_tx_en                               : mac_gmii_rx_dv_real;
+assign mac_gmii_rx_er   = loopback_i ? mac_gmii_tx_er                               : mac_gmii_rx_er_real;
 
 // receive
 
@@ -94,13 +111,13 @@ ssio_ddr_in #
 rx_ssio_ddr_inst (
     .input_clk(phy_rgmii_rx_clk),
     .input_d({phy_rgmii_rxd, phy_rgmii_rx_ctl}),
-    .output_clk(mac_gmii_rx_clk),
-    .output_q1({mac_gmii_rxd[3:0], rgmii_rx_ctl_1}),
-    .output_q2({mac_gmii_rxd[7:4], rgmii_rx_ctl_2})
+    .output_clk(mac_gmii_rx_clk_real),
+    .output_q1({mac_gmii_rxd_real[3:0], rgmii_rx_ctl_1}),
+    .output_q2({mac_gmii_rxd_real[7:4], rgmii_rx_ctl_2})
 );
 
-assign mac_gmii_rx_dv = rgmii_rx_ctl_1;
-assign mac_gmii_rx_er = rgmii_rx_ctl_1 ^ rgmii_rx_ctl_2;
+assign mac_gmii_rx_dv_real = rgmii_rx_ctl_1;
+assign mac_gmii_rx_er_real = rgmii_rx_ctl_1 ^ rgmii_rx_ctl_2;
 
 // transmit
 
@@ -111,7 +128,7 @@ reg rgmii_tx_clk_fall;
 
 reg [5:0] count_reg, count_next;
 
-always @(posedge clk) begin
+always @(posedge clk or posedge rst) begin
     if (rst) begin
         rgmii_tx_clk_1 <= 1'b1;
         rgmii_tx_clk_2 <= 1'b0;
@@ -247,7 +264,7 @@ always @(posedge mac_gmii_tx_clk or posedge rst) begin
 end
 
 reg [3:0] rx_rst_reg;
-assign mac_gmii_rx_rst = rx_rst_reg[0];
+assign mac_gmii_rx_rst_real = rx_rst_reg[0];
 
 always @(posedge mac_gmii_rx_clk or posedge rst) begin
     if (rst) begin

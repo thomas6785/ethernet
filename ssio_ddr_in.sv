@@ -30,16 +30,16 @@ THE SOFTWARE.
 module ssio_ddr_in #
 (
     // target ("SIM", "GENERIC", "XILINX", "ALTERA")
-    parameter TARGET = "GENERIC",
+    parameter string TARGET = "GENERIC",
     // IODDR style ("IODDR", "IODDR2")
     // Use IODDR for Virtex-4, Virtex-5, Virtex-6, 7 Series, Ultrascale
     // Use IODDR2 for Spartan-6
-    parameter IODDR_STYLE = "IODDR2",
+    parameter string IODDR_STYLE = "IODDR2",
     // Clock input style ("BUFG", "BUFR", "BUFIO", "BUFIO2")
     // Use BUFR for Virtex-5, Virtex-6, 7-series
     // Use BUFG for Ultrascale
     // Use BUFIO2 for Spartan-6
-    parameter CLOCK_INPUT_STYLE = "BUFIO2",
+    parameter string CLOCK_INPUT_STYLE = "BUFIO2",
     // Width of register in bits
     parameter WIDTH = 1
 )
@@ -97,7 +97,7 @@ if (TARGET == "XILINX") begin
             .CE(1'b1),
             .CLR(1'b0)
         );
-        
+
     end else if (CLOCK_INPUT_STYLE == "BUFIO") begin
 
         assign clk_int = input_clk;
