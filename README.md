@@ -1,7 +1,12 @@
-# DEPRECATION NOTICE
+This is a port of the Alex Forencich GHz RGMII Ethernet MAC.
 
-**This repository is deprecated and unsupported by lowRISC, we keep the repository around for archival purposes only.**
+It was forked in Jan 2019 and subsequently modified for lowRISC.
 
-# Original README content
-This is a port of the Alex Forencich GHz RGMII Ethernet MAC to the Digilent Genesys2 board.
-It is intended for use with https://github.com/pulp-platform/ariane (a RISCV Linux-capable soft core).
+# Overview
+- exposes two AXI Stream interfaces and an RGMII interface.
+- has loopback mode, and a signal to artificially inject errors into the loopback path for testing CRC.
+- TX data automatically has a CRC appended to it.
+- RX data automatically has the CRC checked and the AXIS 'tuser' signal indicates an error.
+
+TODO improve these docs with a detailed port list, module hierarchy, etc.
+
