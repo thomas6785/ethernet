@@ -1,0 +1,94 @@
+CAPI=2:
+
+# This is a FuseSoC .core file
+# https://fusesoc.readthedocs.io/_/downloads/en/stable/pdf/
+
+name: "lowrisc:mocha:ethernet"
+description: "Ethernet MAC and framing top with internal TX/RX buffers and a single simple memory interface"
+
+filesets:
+    sim_only:
+        depend:
+            - lowrisc:prim_generic:all
+        file_type: systemVerilogSource
+
+    synth_only:
+        files:
+            - /nas/lowrisc/tools/xilinx/Vivado/2021.1/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv
+        file_type: systemVerilogSource
+        # This XPM is used to instantiate dual-port memory with different data widths on each port
+        # TODO remove this hardcoded path
+
+        depend:
+            - lowrisc:prim_xilinx:all
+        # including this will cause any virtual cores to point to their corresponding XILINX concrete cores (as opposed to generic primitives)
+
+    rtl:
+        files:
+            - top/ethernet_pkg.sv
+            - rx_framing/mac_address_filter.sv
+            - rx_framing/ethernet_rx_framing.sv
+            - tx_framing/ethernet_tx_framing.sv
+            - csr/ethernet_csr.sv
+            - top/ethernet_mem_map.sv
+            - top/ethernet_top.sv
+        file_type: systemVerilogSource
+        depend:
+            - lowrisc:mocha:axis_pkt_ring_buffer
+            - lowrisc:mocha:ethernet_mac
+            - lowrisc::mem_if_utils
+            - lowrisc:prim:assert:0.1
+            - lowrisc:prim:util:0.1
+            - lowrisc:prim:fifo
+
+    tb:
+        files:
+            - verif/ethernet_top_tb.sv
+        file_type: systemVerilogSource
+
+parameters:
+    SYNTHESIS:
+        datatype: bool
+        paramtype: vlogdefine
+
+targets:
+    default: &default_target
+        filesets:
+            - rtl
+
+    sim:
+        <<: *default_target
+        default_tool: xsim
+        filesets_append:
+            - sim_only
+            - tb
+        toplevel: ethernet_top_tb
+        tools:
+            xsim:
+                xelab_options: [
+                    --debug, typical,              # necessary to be able to inspect waveforms
+                    --timescale, 1ns/1ps           # default timescale for any moduels that don't specify one
+                ]
+
+    synth:
+        <<: *default_target
+        default_tool: vivado
+        toplevel: ethernet_top
+        filesets_append:
+            - synth_only
+        tools:
+            vivado:
+                part: xc7k325tffg900-2L
+
+    lint:
+        <<: *default_target
+        default_tool: verilator
+        filesets_append:
+            - sim_only
+        toplevel: ethernet_top
+        tools:
+            verilator:
+                mode: lint-only
+                verilator_options:
+                - "-Wall"
+                - "--timing"
