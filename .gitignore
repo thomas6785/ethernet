@@ -1,2 +1,7 @@
-*~
-test/
+build/
+*log
+rundir/
+.venv/
+fusesoc_libraries/
+hooks/
+reports/
