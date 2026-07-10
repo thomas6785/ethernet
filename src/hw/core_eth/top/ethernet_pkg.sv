@@ -32,4 +32,68 @@ package ethernet_pkg;
     localparam int MAX_ETH_PKT_LEN = 1522; // maximum Ethernet packet length in bytes
     typedef logic [$clog2(MAX_ETH_PKT_LEN)-1:0] pkt_len_t;
 
+    ////////////////////////////
+    // RX packet table params //
+    ////////////////////////////
+    localparam RX_DESC_TABLE_WIDTH = 64;
+    localparam RX_DESC_TABLE_DEPTH = 8; // number of packets to buffer
+
+    localparam RX_DESC_TABLE_BYTES     = RX_DESC_TABLE_DEPTH*RX_DESC_TABLE_WIDTH/8;
+    localparam RX_DESC_TABLE_ADDR_MSBS = $clog2(RX_DESC_TABLE_DEPTH);
+    localparam RX_DESC_TABLE_ADDR_W    = $clog2(RX_DESC_TABLE_BYTES);   // byte address width
+    localparam RX_DESC_TABLE_ADDR_LSBS = $clog2(RX_DESC_TABLE_WIDTH/8); // number of LSbs to ignore for word addressing
+
+    ///////////////////////////
+    // RX data buffer params //
+    ///////////////////////////
+    localparam RX_DATA_BUF_WIDTH = 64;
+    localparam RX_DATA_BUF_DEPTH = 1024;
+
+    localparam RX_DATA_BUF_BYTES     = RX_DATA_BUF_DEPTH*RX_DATA_BUF_WIDTH/8;
+    localparam RX_DATA_BUF_ADDR_MSBS = $clog2(RX_DATA_BUF_DEPTH);
+    localparam RX_DATA_BUF_ADDR_W    = $clog2(RX_DATA_BUF_BYTES);   // byte address width
+    localparam RX_DATA_BUF_ADDR_LSBS = $clog2(RX_DATA_BUF_WIDTH/8); // number of LSbs to ignore for word addressing
+
+    // Enum: reason for capturing a packet
+    typedef enum logic [1:0] {
+        MAC_MATCHES     = 0,
+        MAC_BROADCAST   = 1,
+        MAC_MULTICAST   = 2,
+        NON_MAC_MATCH   = 3
+    } capture_reason_e;
+
+    // Metadata for a captured packet
+    typedef struct packed {
+        capture_reason_e capture_reason; // reason for capturing this packet
+        // Option to include more metadata:
+        // timestamp, sequence number, other stuff from the Ethernet frame (e.g. VLAN tag, source MAC address)
+    } pkt_metadata_t;
+
+    // AXI Stream interface (one byte per beat)
+    typedef struct packed {
+        logic [7:0] data;
+        logic       last;
+        logic       valid;
+    } axis_t;
+
+    ///////////////////////////
+    // Config/status structs //
+    ///////////////////////////
+
+    // RX status signals
+    typedef struct packed {
+        logic [$clog2(RX_DESC_TABLE_DEPTH+1)-1:0] n_packets_in_rx_buf;
+        logic empty;
+        logic table_almost_full;
+        logic table_full;
+        logic buf_almost_full;
+        logic pkt_lost_pulse; // pulses as an event whenever a packet is lost due to full buffer or full table
+    } rx_status_t;
+
+    // RX config signals
+    typedef struct packed {
+        logic [47:0] mac_addr; // MAC address to match for capturing packets
+        logic promiscuous_mode; // whether to capture all packets regardless of MAC address
+    } rx_config_t;
+
 endpackage
