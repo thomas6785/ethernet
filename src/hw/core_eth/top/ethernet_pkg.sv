@@ -54,6 +54,17 @@ package ethernet_pkg;
     localparam RX_DATA_BUF_ADDR_W    = $clog2(RX_DATA_BUF_BYTES);   // byte address width
     localparam RX_DATA_BUF_ADDR_LSBS = $clog2(RX_DATA_BUF_WIDTH/8); // number of LSbs to ignore for word addressing
 
+    ///////////////////////////
+    // TX data buffer params //
+    ///////////////////////////
+    localparam TX_DATA_BUF_WIDTH = 64;
+    localparam TX_DATA_BUF_DEPTH = 256; // 256 words of 64 bits = 2048 bytes, enough for one max-sized packet
+
+    localparam TX_DATA_BUF_BYTES     = TX_DATA_BUF_DEPTH*TX_DATA_BUF_WIDTH/8;
+    localparam TX_DATA_BUF_ADDR_MSBS = $clog2(TX_DATA_BUF_DEPTH);
+    localparam TX_DATA_BUF_ADDR_W    = $clog2(TX_DATA_BUF_BYTES);   // byte address width
+    localparam TX_DATA_BUF_ADDR_LSBS = $clog2(TX_DATA_BUF_WIDTH/8); // number of LSbs to ignore for word addressing
+
     // Enum: reason for capturing a packet
     typedef enum logic [1:0] {
         MAC_MATCHES     = 0,
@@ -96,4 +107,14 @@ package ethernet_pkg;
         logic promiscuous_mode; // whether to capture all packets regardless of MAC address
     } rx_config_t;
 
+    // TX status signals
+    typedef struct packed {
+        logic busy;
+        logic done_pulse;
+    } tx_status_t;
+
+    // TX config signals
+    typedef struct packed {
+        logic [10:0] packet_len;
+    } tx_config_t;
 endpackage
