@@ -37,6 +37,8 @@ filesets:
             - cov/axis_pkt_ring_buffer_cov.sv:          {file_type : systemVerilogSource} # TODO separate file list for coverage things. Also move this file to be adjacent to its target
             - verif/coco_top.py:                        {file_type : user , copyto: .}
             - verif/utils.py:                           {file_type : user , copyto: .}
+            - verif/dut_utils.py:                       {file_type : user , copyto: .}
+            - verif/test_utils.py:                      {file_type : user , copyto: .}
             - verif/models.py:                          {file_type : user , copyto: .}
 
     lint_waivers:

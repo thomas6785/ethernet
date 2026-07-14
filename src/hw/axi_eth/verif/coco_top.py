@@ -14,7 +14,7 @@ from cocotb.triggers import RisingEdge,Combine,Timer
 
 from models import AxiEthernetDutWithMirror,AxiEthernetWrapper
 from models import TX_BUFFER_BASE,RX_BUFFER_BASE,RX_TABLE_BASE
-from utils import health_test
+from test_utils import create_test
 
 from logging.handlers import RotatingFileHandler
 from cocotb.logging import SimLogFormatter
@@ -48,113 +48,10 @@ console_handler.setFormatter(SimLogFormatter())
 console_handler.setLevel(logging.INFO)  # Adjust the level as needed
 root_logger.addHandler(console_handler)
 
-async def custom_clock(clk, period, phase_offset=0, unit="ns"):
-    # pre-construct triggers for performance
-    high_time = Timer(period/2, unit=unit)
-    low_time = Timer(period/2, unit=unit)
-    await Timer(phase_offset, unit=unit)
-    while True:
-        clk.value = 1
-        await high_time
-        clk.value = 0
-        await low_time
-
-# TODO test_w_model, test_w_wrapper, and test_w_model_loopback_promiscuous are three extremely similar function and should be refactored into 1 or 2
-def test_w_model(func):
-    """
-    Create a test with a AxiEthernetDutWithMirror instance
-    Begin the clock
-    Reset the DUT (and the model)
-    """
-    @cocotb.test(stage=random.randint(0,100)) # randomise ordering of tests
-    @wraps(func)
-    async def wrapped(dut):
-        meta_logger.info(f"Starting test {func.__name__} at sim time {get_sim_time('ns')} ns")
-        dut_wrapper = AxiEthernetDutWithMirror(dut)
-
-        # Drive the clock (coroutine which will run indefinitely)
-        Clock(dut.clk_125M_i, 8, unit="ns").start()  # 125 MHz clock
-        cocotb.start_soon(custom_clock(dut.clk_125M_quad_i, 8, phase_offset=2, unit="ns")) # quadrature 125 MHz clock
-
-        # Reset the DUT and the model
-        await dut_wrapper.reset()
-
-        # Run the test
-        try:
-            await func(dut_wrapper)
-            dut_wrapper.dut.tests_passed.value = int(dut_wrapper.dut.tests_passed.value) + 1
-        except Exception as e:
-            print(f"Test {func.__name__} failed at sim time {get_sim_time('ns')} ns")
-            dut_wrapper.dut.tests_failed.value = int(dut_wrapper.dut.tests_failed.value) + 1
-            raise e
-        finally:
-            meta_logger.info(f"Finished test {func.__name__} ({hex(int(dut_wrapper.dut.tests_done.value)+1)} tests now completed)")
-            dut_wrapper.dut.tests_done.value = int(dut_wrapper.dut.tests_done.value) + 1
-
-        # Wait a few cycles after completing a test
-        for _ in range(5):
-            await RisingEdge(dut.clk_125M_i)
-
-    return wrapped
-
-def test_w_wrapper(func):
-    """
-    Create a test with a AxiEthernetWrapper instance
-    Begin the clock
-    Reset the DUT
-    """
-    @cocotb.test(stage=random.randint(0,100)) # randomise ordering of tests
-    @wraps(func)
-    async def wrapped(dut):
-        meta_logger.info(f"Starting test {func.__name__} at sim time {get_sim_time('ns')} ns")
-
-        dut_wrapper = AxiEthernetWrapper(dut)
-
-        # Drive the clock (coroutine which will run indefinitely)
-        Clock(dut.clk_125M_i, 8, unit="ns").start()  # 125 MHz clock
-        cocotb.start_soon(custom_clock(dut.clk_125M_quad_i, 8, phase_offset=2, unit="ns")) # quadrature 125 MHz clock
-
-        # Reset the DUT
-        await dut_wrapper.reset()
-
-        # Run the test
-        try:
-            await func(dut_wrapper)
-            dut_wrapper.dut.tests_passed.value = int(dut_wrapper.dut.tests_passed.value) + 1
-        except Exception as e:
-            print(f"Test {func.__name__} failed at sim time {get_sim_time('ns')} ns")
-            dut_wrapper.dut.tests_failed.value = int(dut_wrapper.dut.tests_failed.value) + 1
-            raise e
-        finally:
-            dut_wrapper.dut.tests_done.value = int(dut_wrapper.dut.tests_done.value) + 1
-            meta_logger.info(f"Finished test {func.__name__} ({hex(int(dut_wrapper.dut.tests_done.value))} tests now completed)")
-
-        # Wait a few cycles after completing a test
-        for _ in range(5):
-            await RisingEdge(dut.clk_125M_i)
-
-    return wrapped
-
-def test_w_model_loopback_promiscuous(func):
-    """
-    Wraps test_w_model and sets the DUT to loopback promiscuous mode
-    Also sets MAC address to 0xDEADBEEFCAFE
-    """
-    @test_w_model
-    @wraps(func)
-    async def wrapped(dut_wrapper):
-        await dut_wrapper.mode_set(1,1)
-        await dut_wrapper.mac_address_set([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1])
-
-        # Run the test
-        await func(dut_wrapper)
-
-    return wrapped
-
 ##############
 # Reset test #
 ##############
-@test_w_model
+@create_test()
 async def reset_state_test(dut_wrapped):
     # Check all registers/state is reset to expected values
     await dut_wrapped.intr_state_get()
@@ -168,7 +65,7 @@ async def reset_state_test(dut_wrapped):
 #############################
 # Register read/write tests #
 #############################
-@test_w_model
+@create_test(with_mirror=True)
 async def reg_mac_addr_test(dut_wrapper):
     # Check value after reset matches
     await dut_wrapper.mac_address_get()
@@ -188,7 +85,7 @@ async def reg_mac_addr_test(dut_wrapper):
         await dut_wrapper.mac_address_set([random.randint(0,255) for _ in range(6)])
         await dut_wrapper.mac_address_get()
 
-@test_w_model
+@create_test(with_mirror=True)
 async def reg_intr_mask_test(dut_wrapped):
     await dut_wrapped.intr_mask_set(0)
     await dut_wrapped.intr_mask_get()
@@ -199,7 +96,7 @@ async def reg_intr_mask_test(dut_wrapped):
         await dut_wrapped.intr_mask_set(randval)
         await dut_wrapped.intr_mask_get()
 
-@test_w_model
+@create_test(with_mirror=True)
 async def reg_intr_test_test(dut_wrapped):
     await dut_wrapped.intr_mask_set(127)
     await dut_wrapped.test_intr()
@@ -211,7 +108,7 @@ async def reg_intr_test_test(dut_wrapped):
         irq_pending = await dut_wrapped.irq_pending() # get IRQ pending state for the model and DUT to check they match
         assert irq_pending == (i==6), f"IRQ pending should be {i==6} when INTR_TEST is fired and INTR_MASK is {1<<i}"
 
-@test_w_model
+@create_test(with_mirror=True)
 async def reg_ctrl_test(dut_wrapped):
     await dut_wrapped.mode_set(0,0)
     await dut_wrapped.mode_get()
@@ -222,7 +119,7 @@ async def reg_ctrl_test(dut_wrapped):
     await dut_wrapped.mode_set(1,1)
     await dut_wrapped.mode_get()
 
-@test_w_model
+@create_test(with_mirror=True)
 async def reg_status_test(dut_wrapped):
     await dut_wrapped.status_get()
     # TODO tests covering status and INTR_STATE flags
@@ -230,16 +127,14 @@ async def reg_status_test(dut_wrapped):
 #################
 # Loopback test #
 #################
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True,
+    prep_tx_buffer=True
+)
 async def loopback_basic_test(dut_wrapped):
-    # Set promiscuous loopback mode
-    await dut_wrapped.mode_set(1,1)
-
-    # Send a packet
-    for i in range(64//8):
-        await dut_wrapped.tx_buffer_write64(i,i)
     await dut_wrapped.tx_packet_send(64)
-
     await dut_wrapped.wait_for_tx_done()
 
     # Check packet was received
@@ -247,11 +142,13 @@ async def loopback_basic_test(dut_wrapped):
     await dut_wrapped.rx_buffer_metadata_get(0)
     await dut_wrapped.read_packet(0) # read the data and check it matches between the model and the DUT
 
-@test_w_model_loopback_promiscuous
+@create_test(
+        with_mirror=True,
+        loopback=True,
+        promiscuous=True,
+        prep_tx_buffer=True
+)
 async def loopback_b2b_transmissions(dut_wrapped):
-    for i in range((1518+7)//8):
-        await dut_wrapped.tx_buffer_write64(i,random.randint(0,0xFFFFFFFFFFFFFFFF)) # fill the TX buffer with random data
-
     for i in range(8):
         # kick off the transmission of a random-length packet
         await dut_wrapped.tx_packet_send(random.randint(56,1518)) # send a random-length packet between 60 and 1518 bytes
@@ -292,7 +189,10 @@ async def loopback_b2b_transmissions(dut_wrapped):
     # so to make sure we are always testing that we should wait no more than 8 cycles after the previous TX finished
     # otherwise we are just sending two packets and there is no way to know if the IPG was enforced or not
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback = True,
+    promiscuous = True
+)
 async def loopback_b2b_edge_case_test(dut_wrapped):
     # Test case covering the possibility that the instruction to TX a new packet arrives JUST as the previous one finishes
     pass
@@ -301,34 +201,32 @@ async def loopback_b2b_edge_case_test(dut_wrapped):
 #######################
 # MAC Filtering Tests #
 #######################
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=False,
+    mac_addr=[0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1],
+    prep_tx_buffer=True
+)
 async def mac_non_match_test(dut_wrapped):
-    # Set loopback non-promiscuous mode
-    await dut_wrapped.mode_set(0,1)
-    await dut_wrapped.mac_address_set([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1])
-
     # Send a packet
-    for i in range(64//8):
-        await dut_wrapped.tx_buffer_write64(i,i)
     await dut_wrapped.tx_packet_send(64)
-
     await dut_wrapped.wait_for_tx_done()
 
     # Check packet was NOT received due to MAC mismatch
     assert not (await dut_wrapped.rx_packet_pending()), "Expected no packet after mismatching MAC without promiscuous mode"
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=random.choice([False,True]), # can be promiscuous or not, shouldn't matter
+    mac_addr=[0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1],
+    prep_tx_buffer=True
+)
 async def mac_match_test(dut_wrapped):
-    # Set loopback non-promiscuous mode
-    await dut_wrapped.mode_set(random.choice([0,1]),1)
-    await dut_wrapped.mac_address_set([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1])
-
     # Send a packet with matching MAC
     await dut_wrapped.tx_buffer_write64(0,0xBEBAFECAEFBEADDE)
-    for i in range(1,64//8):
-        await dut_wrapped.tx_buffer_write64(i,i)
     await dut_wrapped.tx_packet_send(64)
-
     await dut_wrapped.wait_for_tx_done()
 
     # Check packet was received due to MAC match
@@ -336,17 +234,16 @@ async def mac_match_test(dut_wrapped):
     await dut_wrapped.rx_buffer_metadata_get(0)
     await dut_wrapped.read_packet(0) # read the data and check it matches between the model and the DUT
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True,
+    mac_addr=[0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1],
+    prep_tx_buffer=True
+)
 async def mac_promiscuous_test(dut_wrapped):
-    # Set loopback promiscuous mode
-    await dut_wrapped.mode_set(1,1)
-    await dut_wrapped.mac_address_set([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1])
-
     # Send a packet
-    for i in range(64//8):
-        await dut_wrapped.tx_buffer_write64(i,i)
     await dut_wrapped.tx_packet_send(64)
-
     await dut_wrapped.wait_for_tx_done()
 
     # Check packet was received due to promiscuous mode
@@ -354,18 +251,17 @@ async def mac_promiscuous_test(dut_wrapped):
     await dut_wrapped.rx_buffer_metadata_get(0)
     await dut_wrapped.read_packet(0)
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=random.choice([True,False]), # for broadcast, promiscuity shouldn't matter
+    mac_addr=[0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1],
+    prep_tx_buffer=True
+)
 async def mac_broadcast_test(dut_wrapped):
-    # Set loopback mode
-    await dut_wrapped.mode_set(random.choice([0,1]),1)
-    await dut_wrapped.mac_address_set([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1])
-
     # Send a broadcast packet
     await dut_wrapped.tx_buffer_write64(0,0x0000FFFFFFFFFFFF)
-    for i in range(1,64//8):
-        await dut_wrapped.tx_buffer_write64(i,i)
     await dut_wrapped.tx_packet_send(64)
-
     await dut_wrapped.wait_for_tx_done()
 
     # Check packet was received due to broadcast address
@@ -373,18 +269,17 @@ async def mac_broadcast_test(dut_wrapped):
     await dut_wrapped.rx_buffer_metadata_get(0)
     await dut_wrapped.read_packet(0)
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=random.choice([True,False]), # for multicast, promiscuity shouldn't matter
+    mac_addr=[0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1],
+    prep_tx_buffer=True
+)
 async def mac_multicast_test(dut_wrapped):
-    # Set loopback mode
-    await dut_wrapped.mode_set(random.choice([0,1]),1)
-    await dut_wrapped.mac_address_set([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1])
-
-    # Send a multicast packet (least significant bit of first byte is 1)
+    # Send a multicast packet
     await dut_wrapped.tx_buffer_write64(0,0x00000000_005E0001) # multicast address
-    for i in range(1,64//8):
-        await dut_wrapped.tx_buffer_write64(i,i)
     await dut_wrapped.tx_packet_send(64)
-
     await dut_wrapped.wait_for_tx_done()
 
     # Check packet was received due to multicast address
@@ -395,11 +290,13 @@ async def mac_multicast_test(dut_wrapped):
 ##################################
 # Test packet queueing behaviour #
 ##################################
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True,
+    mac_addr=[0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1]
+)
 async def packet_queue_test(dut_wrapped):
-    await dut_wrapped.mode_set(1,1)
-    await dut_wrapped.mac_address_set([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1])
-
     # Send 5 packets
     for pkt_num in range(5):
         for i in range(64//8):
@@ -414,11 +311,13 @@ async def packet_queue_test(dut_wrapped):
         await dut_wrapped.rx_buffer_metadata_get(pkt_num)
         await dut_wrapped.read_packet(pkt_num) # read the data and check it matches between the model and the DUT
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    promiscuous=True,
+    loopback=True,
+    mac_addr=[0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1]
+)
 async def packet_pop_test(dut_wrapped):
-    await dut_wrapped.mode_set(1,1)
-    await dut_wrapped.mac_address_set([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1])
-
     # Send 5 packets
     for pkt_num in range(5):
         for i in range(64//8):
@@ -432,7 +331,11 @@ async def packet_pop_test(dut_wrapped):
         await dut_wrapped.rx_buffer_metadata_get(0)
         await dut_wrapped.rx_pop_packet()
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True
+)
 async def packet_peek_test(dut_wrapped):
     # load up 8 packets into the DUT
     for _ in range(8):
@@ -457,42 +360,51 @@ async def packet_peek_test(dut_wrapped):
 #################################
 # Memory interface stress tests #
 #################################
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True
+)
 async def back_to_back_tx_buffer_test(dut_wrapped):
-    await dut_wrapped.mode_set(1,1)
+    # Create writes to 8 different words back-to-back
+    writes = [
+        dut_wrapped.tx_buffer_write64(i,random.randint(0,0xFFFFFFFFFFFFFFFF))
+        for i in range(8)
+    ]
+    # Shuffle their order
+    random.shuffle(writes)
+    # Start them all simultaneously and wait for them all to finish
     await Combine(
-        cocotb.start_soon(dut_wrapped.tx_buffer_write64(0,0xDEADBEEFDEADBEEF)),
-        cocotb.start_soon(dut_wrapped.tx_buffer_write64(1,0x0123456789ABCDEF)),
-        cocotb.start_soon(dut_wrapped.tx_buffer_write64(2,0xCAFEBABECAFEBABE)),
-        cocotb.start_soon(dut_wrapped.tx_buffer_write64(3,0x0BADF00D0BADF00D)),
-        cocotb.start_soon(dut_wrapped.tx_buffer_write64(4,0xDEADBEEFDEADBEEF)),
-        cocotb.start_soon(dut_wrapped.tx_buffer_write64(5,0x0123456789ABCDEF)),
-        cocotb.start_soon(dut_wrapped.tx_buffer_write64(6,0xCAFEBABECAFEBABE)),
-        cocotb.start_soon(dut_wrapped.tx_buffer_write64(7,0x0BADF00D0BADF00D))
+        *[cocotb.start_soon(i) for i in writes]
     )
+    # Send that packet and check it was received with the same data
     await dut_wrapped.tx_packet_send(64)
     await dut_wrapped.wait_for_tx_done()
     await dut_wrapped.status_get()
     await dut_wrapped.rx_buffer_metadata_get(0)
     await dut_wrapped.read_packet(0)
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True,
+    prep_tx_buffer=True
+)
 async def back_to_back_rx_buffer_test(dut_wrapped):
-    await dut_wrapped.mode_set(1,1)
-    for i in range(8):
-        await dut_wrapped.tx_buffer_write64(i,i)
     await dut_wrapped.tx_packet_send(64)
     await dut_wrapped.wait_for_tx_done()
 
     await dut_wrapped.status_get()
     await dut_wrapped.rx_buffer_metadata_get(0)
-    await dut_wrapped.read_packet(0)
 
     await Combine(
         *[cocotb.start_soon(dut_wrapped.rx_buffer_read64(i)) for i in range(8)]
     ) # cool use of list comprehension and the * operator!
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def back_to_back_metadata_test(dut_wrapped):
     # load up 5 packets into the DUT
     for pkt_num in range(5):
@@ -505,7 +417,7 @@ async def back_to_back_metadata_test(dut_wrapped):
         *[cocotb.start_soon(dut_wrapped.rx_buffer_metadata_get(i)) for i in range(5)]
     ) # cool use of list comprehension and the * operator!
 
-@test_w_model
+@create_test(with_mirror=True)
 async def back_to_back_csr_test(dut_wrapped):
     # define a series of CSR accesses
     # remember how 'async/await' works! None of these will actually start until they are awaited, or (in this case) passed into cocotb.start_soon
@@ -527,7 +439,10 @@ async def back_to_back_csr_test(dut_wrapped):
     await dut_wrapped.status_get()
     await dut_wrapped.mac_address_get()
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def back_to_back_mixed_test(dut_wrapped):
     # load up 8 packets into the DUT
     for pkt_num in range(8):
@@ -586,7 +501,10 @@ async def back_to_back_mixed_test(dut_wrapped):
 ########################
 # Fullness flags tests #
 ########################
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def table_full_test(dut_wrapped):
     # Fill the table with 8 packets
     for _ in range(8):
@@ -606,7 +524,10 @@ async def table_full_test(dut_wrapped):
         await dut_wrapped.rx_pop_packet()
         await dut_wrapped.status_get()
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def buffer_full_test(dut_wrapped):
     # Send 5 long packets to fill the buffer
     for _ in range(5):
@@ -626,7 +547,10 @@ async def buffer_full_test(dut_wrapped):
         await dut_wrapped.rx_pop_packet()
         await dut_wrapped.status_get()
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def buffer_full_edge_test(dut_wrapped):
     # test an edge case where the buffer is almost full and we send a packet that should JUST fit
 
@@ -651,7 +575,10 @@ async def buffer_full_edge_test(dut_wrapped):
     await dut_wrapped.status_get()
     await dut_wrapped.intr_state_get()
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def buffer_almost_full_edge_test(dut_wrapped):
     # send 4 packets that almost reach the buffer_almost_full threshold
     space_used = 0
@@ -683,7 +610,10 @@ async def buffer_almost_full_edge_test(dut_wrapped):
     await dut_wrapped.wait_for_tx_done()
     assert (await dut_wrapped.status_get() & 0x8), "Expected buffer_almost_full flag to be set"
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def buffer_full_packet_lost_test(dut_wrapped):
     # Send 5 long packets to fill the buffer
     for _ in range(5):
@@ -723,7 +653,10 @@ async def buffer_full_packet_lost_test(dut_wrapped):
     assert not (intr_state & 0x10), "Expected packet lost flag to be cleared after explicit clear"
     await dut_wrapped.status_get()
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def table_full_packet_lost_test(dut_wrapped):
     # Send 8 packets to fill the table
     for _ in range(8):
@@ -759,7 +692,10 @@ async def table_full_packet_lost_test(dut_wrapped):
     assert not (intr_state & 0x10), "Expected packet lost flag to be cleared after explicit clear"
     await dut_wrapped.status_get()
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def packet_lost_recovery_test(dut_wrapped):
     # Send 9 packets to fill the table and cause a packet lost
     for _ in range(9):
@@ -793,7 +729,10 @@ async def packet_lost_recovery_test(dut_wrapped):
 ##############
 # CRC stress #
 ##############
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def crc_error_injection_test(dut_wrapped):
     # Begin a loopback transmission
     pkt_len = random.randint(56,1518)
@@ -827,89 +766,81 @@ async def crc_error_injection_test(dut_wrapped):
 # Because the simple packet-level model can't handle most of the unexpected behaviours, the onus is on these test cases to assert that the DUT is well-behaved
 
 # we'll also run the health test alone a few times to make sure it's works
-@test_w_wrapper
+@create_test(with_mirror=False,health_test_after=True)
 async def health_test_test(dut_wrapped):
-    for _ in range(5):
-        await health_test(dut_wrapped)
+    pass
     # call the health test on a fresh DUT to ensure it passes in a known-good state
 
-@test_w_wrapper
+@create_test(
+    with_mirror=False,
+    prep_tx_buffer=True,
+    loopback=True,
+    promiscuous=False,
+    mac_addr=[0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1],
+    health_test_after=True,
+)
 async def change_mac_during_rx_match_to_non_match(dut_wrapped):
     # This test follows a common design pattern:
     # - Configure the DUT
     # - Start something, then do something unexpected midway through, potentially placing the DUT in a bad state
     # - Run the health test to ensure the bad state is recoverable
 
-    await dut_wrapped.mac_address_set([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE][::-1])
-    await dut_wrapped.mode_set(0,1) # loopback, non-promiscuous
-
     await dut_wrapped.tx_buffer_write64(0,0xBEBAFECAEFBEADDE) # start with matching MAC address
-    for i in range(1,(1518+7)//8):
-        await dut_wrapped.tx_buffer_write64(i,random.randint(0,0xFFFFFFFFFFFFFFFF)) # fill the TX buffer with random data
-
     await dut_wrapped.tx_packet_send(1518) # START sending a packet
 
     for _ in range(random.randint(1,32)): # range 1-32 gives a roughly 50/50 chance of the packet making it through or not
         await RisingEdge(dut_wrapped.dut.clk_125M_i) # wait a random number of cycles during the packet transmission
 
     await dut_wrapped.mac_address_set([0x12,0x34,0x56,0x78,0x9a,0xbc]) # change the MAC address during RX
-
     await dut_wrapped.wait_for_tx_done() # wait for the TX to finish
 
-    await health_test(dut_wrapped)
-
-@test_w_wrapper
+@create_test(
+    with_mirror=False,
+    prep_tx_buffer=True,
+    loopback=True,
+    promiscuous=True,
+    health_test_after=True,
+)
 async def change_loopback_during_loopback(dut_wrapped):
-    await dut_wrapped.mode_set(1,1) # loopback, promiscuous
-
-    await dut_wrapped.tx_buffer_write64(0,0xBEBAFECAEFBEADDE) # fill the TX buffer with random data
-    for i in range(1,(1518+7)//8):
-        await dut_wrapped.tx_buffer_write64(i,random.randint(0,0xFFFFFFFFFFFFFFFF))
-
     await dut_wrapped.tx_packet_send(1518) # START sending a packet
 
     for _ in range(random.randint(1,32)): # range 1-32 gives a roughly 50/50 chance of the packet making it through or not
         await RisingEdge(dut_wrapped.dut.clk_125M_i) # wait a random number of cycles during the packet transmission
 
-    await dut_wrapped.mode_set(0,0) # change the loopback mode during RX
+    await dut_wrapped.mode_set(1,0) # disable loopback mode during RX
 
     await dut_wrapped.wait_for_tx_done() # wait for the TX to finish
 
-    await health_test(dut_wrapped)
-    # TODO I'm still noticing a lot of duplicate code here e.g. configuring the DUT, filling the TX buffer
-    # TODO I could easily make helper functions to do all of that. For the TX buffer I could just specify a length and a seed and it can fill the buffer, then I can supply the same seed when checking the readback
+@create_test(
+    with_mirror=False,
+    prep_tx_buffer=True,
+    loopback=True,
+    promiscuous=True,
+    health_test_after=True,
+)
 
-@test_w_wrapper
 async def change_promiscuous_during_loopback(dut_wrapped):
-    await dut_wrapped.mode_set(1,1) # loopback, promiscuous
-
-    await dut_wrapped.tx_buffer_write64(0,0xBEBAFECAEFBEADDE) # fill the TX buffer with random data
-    for i in range(1,(1518+7)//8):
-        await dut_wrapped.tx_buffer_write64(i,random.randint(0,0xFFFFFFFFFFFFFFFF))
-
-    await dut_wrapped.tx_packet_send(1518) # START sending a packet
+    await dut_wrapped.tx_packet_send(1518) # START sending a packet with promiscuous on
 
     for _ in range(random.randint(1,32)): # range 1-32 gives a roughly 50/50 chance of the packet making it through or not
         await RisingEdge(dut_wrapped.dut.clk_125M_i) # wait a random number of cycles during the packet transmission
 
-    await dut_wrapped.mode_set(1,0) # change the promiscuous mode during RX
+    await dut_wrapped.mode_set(0,1) # disable promiscuous mode during RX
 
     await dut_wrapped.wait_for_tx_done() # wait for the TX to finish
-
-    await health_test(dut_wrapped)
 
 # TODO there are so many cases to cover here for the bad state recovery tests:
 #   - Circumstances:    TX to RGMII, RX from RGMII, or loopback?
 #   - Disturbance:      register write, TX buffer write, RX pop, reset
 
-@test_w_model # this one can use the model, which gives some added checks
+@create_test(
+    with_mirror=True, # this one can use the model, which gives some added checks
+    promiscuous=True,
+    loopback=True,
+    prep_tx_buffer=True,
+    health_test_after=True
+)
 async def pop_during_loopback(dut_wrapped):
-    await dut_wrapped.mode_set(1,1) # loopback, promiscuous
-
-    await dut_wrapped.tx_buffer_write64(0,0xBEBAFECAEFBEADDE) # fill the TX buffer with random data
-    for i in range(1,(1518+7)//8):
-        await dut_wrapped.tx_buffer_write64(i,random.randint(0,0xFFFFFFFFFFFFFFFF))
-
     await dut_wrapped.tx_packet_send(1518) # START sending a packet
     await dut_wrapped.wait_for_tx_done() # wait for the TX to finish
     await dut_wrapped.tx_packet_send(1518) # START sending another packet
@@ -920,16 +851,14 @@ async def pop_during_loopback(dut_wrapped):
 
     await dut_wrapped.wait_for_tx_done() # wait for the TX to finish
 
-    await health_test(dut_wrapped.wrapper)
-
-@test_w_wrapper
+@create_test(
+    with_mirror=False,
+    promiscuous=True,
+    loopback=True,
+    prep_tx_buffer=True,
+    health_test_after=True
+)
 async def tx_write_during_tx_recovery(dut_wrapped):
-    await dut_wrapped.mode_set(1,1) # loopback, promiscuous
-
-    await dut_wrapped.tx_buffer_write64(0,0xBEBAFECAEFBEADDE) # fill the TX buffer with random data
-    for i in range(1,(1518+7)//8):
-        await dut_wrapped.tx_buffer_write64(i,random.randint(0,0xFFFFFFFFFFFFFFFF))
-
     await dut_wrapped.tx_packet_send(1518) # START sending a packet
 
     while await dut_wrapped.tx_busy():
@@ -939,37 +868,38 @@ async def tx_write_during_tx_recovery(dut_wrapped):
     for _ in range(10):
         await RisingEdge(dut_wrapped.dut.clk_125M_i) # wait a few cycles to ensure the DUT is 'quiet' before running the health test
 
-    await health_test(dut_wrapped) # make sure the DUT is not stuck in a bad state. Note that this is the only actual check in this test, everything else is just stimulus as there is no model to compare teo
-
-# TODO modify these tests to use begin_rx_packet instead
-
 ####################
 # RGMII Simulation #
 ####################
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=False,
+    promiscuous=True
+)
 async def rgmii_rx_test(dut_wrapped):
-    await dut_wrapped.mode_set(1,0) # non-loopback, promiscuous
-
     await dut_wrapped.simulate_rx_packet([random.randint(0,255) for _ in range(random.randint(56,1518))])
 
     n_packets = (await dut_wrapped.status_get()) >> 8
     assert n_packets == 1, f"Expected 1 packet pending after simulating RX, got {n_packets}"
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=random.choice([True,False]),
+    promiscuous=random.choice([True,False]),
+    prep_tx_buffer=True
+)
 async def rgmii_tx_test(dut_wrapped):
-    await dut_wrapped.mode_set(0,0) # non-loopback, non-promiscuous
-
-    for i in range((1518+7)//8):
-        await dut_wrapped.tx_buffer_write64(i,random.randint(0,0xFFFFFFFFFFFFFFFF))
     await dut_wrapped.tx_packet_send(1518)
     await dut_wrapped.wait_for_tx_done(tail_after_done=10)
 
     await dut_wrapped.get_transmitted_packet() # this will check the model and the DUT match
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=False,
+    promiscuous=True
+)
 async def rgmii_pop_during_rx(dut_wrapped):
-    await dut_wrapped.mode_set(1,0) # non-loopback, promiscuous
-
     # Load one packet initially
     await dut_wrapped.simulate_rx_packet([random.randint(0,255) for _ in range(random.randint(56,1518))])
 
@@ -997,10 +927,12 @@ async def rgmii_pop_during_rx(dut_wrapped):
     n_packets = (await dut_wrapped.status_get()) >> 8
     assert n_packets == 1, f"Expected 1 packet pending, got {n_packets}"
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=False,
+    promiscuous=True
+)
 async def rgmii_pop_during_rx_table_full(dut_wrapped):
-    await dut_wrapped.mode_set(1,0) # non-loopback, promiscuous
-
     # Load 8 packets initially to fill the table
     for _ in range(8):
         await dut_wrapped.simulate_rx_packet([random.randint(0,255) for _ in range(random.randint(56,900))])
@@ -1033,11 +965,13 @@ async def rgmii_pop_during_rx_table_full(dut_wrapped):
     # Also check the interrupt flags
     await dut_wrapped.intr_state_get()
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=False,
+    promiscuous=True
+)
 async def rgmii_b2b_rx(dut_wrapped):
     # queue up several packets for RX via RGMII
-    await dut_wrapped.mode_set(1,0) # non-loopback, promiscuous
-
     for _ in range(5):
         await dut_wrapped.begin_rx_packet([random.randint(0,255) for _ in range(random.randint(56,1518))])
         await dut_wrapped.wait_for_rx_done(tail_after_done=0)
@@ -1051,14 +985,15 @@ async def rgmii_b2b_rx(dut_wrapped):
     for i in range(5):
         await dut_wrapped.read_packet(i)
 
-@test_w_model
+@create_test(
+    with_mirror=True,
+    loopback=False,
+    promiscuous=True,
+    prep_tx_buffer=True
+)
 async def rgmii_simultaneous_tx_rx(dut_wrapped):
     # queue up several packets for RX via RGMII
-    await dut_wrapped.mode_set(1,0) # non-loopback, promiscuous
-
     # Start a packet TX via RGMII
-    for i in range((1518+7)//8):
-        await dut_wrapped.tx_buffer_write64(i,random.randint(0,0xFFFFFFFFFFFFFFFF))
     await dut_wrapped.tx_packet_send(random.randint(56,1518))
 
     # Start a packet RX via RGMII
@@ -1087,7 +1022,10 @@ async def rgmii_simultaneous_tx_rx(dut_wrapped):
 # we can get ~100% toggle coverage with the targeted tests, this will be a
 # useful stress test
 
-@test_w_model_loopback_promiscuous
+@create_test(
+    loopback=True,
+    promiscuous=True
+)
 async def long_random_test(dut_wrapped):
     # randomly pop and inject packets for 500 iterations
     # check the status every iteration
@@ -1136,7 +1074,10 @@ async def long_random_test(dut_wrapped):
 # Test bus errors #
 ###################
 
-@test_w_wrapper
+@create_test(
+    with_mirror=False,
+    health_test_after=True # Run a health test to ensure the DUT isn't broken by this
+)
 async def err_write_rx_buffer(dut_wrapped):
     # Pick a random address in the RX buffer
     # Read its current value
@@ -1161,10 +1102,10 @@ async def err_write_rx_buffer(dut_wrapped):
     assert rresp.data == original_data, f"Expected RX buffer data to be unchanged after write error"
     # This is alright for now but it would be best if we were checking VALID data
 
-    # Run a health test to ensure the DUT isn't broken by that
-    await health_test(dut_wrapped)
-
-@test_w_wrapper
+@create_test(
+    with_mirror=False,
+    health_test_after=True # Run a health test to ensure the DUT isn't broken by this
+)
 async def err_write_rx_metadata(dut_wrapped):
     # Pick a random address in the RX metadata table
     # Attempt to write to it
@@ -1172,9 +1113,11 @@ async def err_write_rx_metadata(dut_wrapped):
     address = RX_TABLE_BASE+8*(random.randint(0,7))
     bresp = await dut_wrapped._axi_driver.write(address,random.randbytes(8))
     assert bresp.resp == 2 # slave error expected
-    await health_test(dut_wrapped)
 
-@test_w_wrapper
+@create_test(
+    with_mirror=False,
+    health_test_after=True # Run a health test to ensure the DUT isn't broken by this
+)
 async def err_read_tx_buffer(dut_wrapped):
     # Pick a random address in the TX buffer
     # Attempt to read from it
@@ -1182,9 +1125,11 @@ async def err_read_tx_buffer(dut_wrapped):
     address = TX_BUFFER_BASE+8*(random.randint(0,2048)>>3)
     rresp = await dut_wrapped._axi_driver.read(address,8)
     assert rresp.resp == 2 # slave error expected
-    await health_test(dut_wrapped)
 
-@test_w_wrapper
+@create_test(
+    with_mirror=False,
+    health_test_after=True # Run a health test to ensure the DUT isn't broken by this
+)
 async def err_read_invalid_rx_metadata(dut_wrapped):
     # Pick a random address in the RX metadata table
     # Attempt to read from it
@@ -1193,29 +1138,34 @@ async def err_read_invalid_rx_metadata(dut_wrapped):
     address = RX_TABLE_BASE+8*(random.randint(0,7))
     rresp = await dut_wrapped._axi_driver.read(address,8)
     assert rresp.resp == 2 # slave error expected
-    await health_test(dut_wrapped)
 
-@test_w_wrapper
+@create_test(
+    with_mirror=False,
+    health_test_after=True # Run a health test to ensure the DUT isn't broken by this
+)
 async def err_read_invalid_address(dut_wrapped):
     address = random.randint(0x6040,0x7FFF) # pick a random address in the unused space
     rresp = await dut_wrapped._axi_driver.read(address,8)
     assert rresp.resp >= 2 # slave error or decode error expected
-    await health_test(dut_wrapped)
 
-@test_w_wrapper
+@create_test(
+    with_mirror=False,
+    health_test_after=True # Run a health test to ensure the DUT isn't broken by this
+)
 async def err_write_invalid_address(dut_wrapped):
     address = random.randint(0x6040,0x7FFF) # pick a random address in the unused space
     bresp = await dut_wrapped._axi_driver.write(address,random.randbytes(8))
     assert bresp.resp >= 2 # slave error or decode error expected
-    await health_test(dut_wrapped)
 
-@test_w_wrapper
+@create_test(
+    with_mirror=False,
+    health_test_after=True # Run a health test to ensure the DUT isn't broken by this
+)
 async def err_write_status_reg(dut_wrapped):
     # Attempt to write to the status register
     # Assert that the write gave an error
     bresp = await dut_wrapped._axi_driver.write(0x0814,random.randbytes(4)) # TODO not ideal to have hardcoded this address
     assert bresp.resp == 2 # slave error expected
-    await health_test(dut_wrapped)
 
 note = """
 This file is now over 1k lines long and could do with refactoring
