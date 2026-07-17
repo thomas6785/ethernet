@@ -119,7 +119,6 @@ class AxiEthernetModel():
 
         self.tx_packet_in_progress = None
         self.rx_packet_in_progress = None
-        self.rx_packet_in_progress_bad = False
 
         self.tx_log = [] # log of packets sent out of the DUT (INCLUDING loopbacked packets)
 
@@ -251,13 +250,16 @@ class AxiEthernetModel():
         packet_data = self.tx_buffer[:len_bytes]
         self.tx_packet_in_progress = packet_data
 
+        if self.loopback:
+            self.rx_packet_in_progress = packet_data
+
     @log_calls
     def wait_for_tx_done(self,*args):
         packet_data = self.tx_packet_in_progress
         self.tx_packet_in_progress = None
 
         if self.loopback:
-            self.simulate_rx_packet(packet_data)
+            self.wait_for_rx_done()
 
         self.tx_log.append(packet_data)
         self.tx_done_irq = True
@@ -275,18 +277,18 @@ class AxiEthernetModel():
 
     @log_calls
     def begin_rx_packet(self,data):
-        if self.rx_packet_in_progress is not None:
-            raise TestbenchError("RX packet already in progress")
-        self.rx_packet_in_progress = data
+        if not self.loopback:
+            if self.rx_packet_in_progress is not None:
+                raise TestbenchError("RX packet already in progress")
+            self.rx_packet_in_progress = data
 
     @log_calls
     def wait_for_rx_done(self):
         data = self.rx_packet_in_progress
         self.rx_packet_in_progress = None
 
-        if self.rx_packet_in_progress_bad:
-            self.rx_packet_in_progress_bad = False
-            return # drop the packet
+        if data is None:
+            return # no packet in progress
         else:
             assert len(data) <= 1522, "Illegally sized packet"
             if data[:6] == self.mac_address[::-1]:

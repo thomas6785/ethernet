@@ -80,7 +80,7 @@ module ethernet_top #(
 
     // Connect the MAC to the RX and TX framing modules
     // AXI Stream interface
-    ethernet_pkg::axis_t rx_axis;
+    ethernet_pkg::axis_t rx_axis_real,rx_axis_muxed;
     ethernet_pkg::axis_t tx_axis;
     logic tx_axis_tready; // backpressure for TX
     // there is no backpressure allowed for RX
@@ -128,7 +128,7 @@ module ethernet_top #(
         // AXI Stream interfaces
         .tx_axis_i        (tx_axis),
         .tx_axis_tready_o (tx_axis_tready),
-        .rx_axis_o        (rx_axis)
+        .rx_axis_o        (rx_axis_real)
     );
 
     // Instantiate CSR block
@@ -182,7 +182,7 @@ module ethernet_top #(
     ethernet_rx_framing rx_framing_inst (
         .clk_i(clk_125M_i),
         .rst_ni,
-        .rx_axis_i              (rx_axis         ), // connects to MAC output
+        .rx_axis_i              (rx_axis_muxed   ), // connects to MAC output
         .data_buf_mem_req_i     (rx_data_mem_req ), // connects to the memory map
         .data_buf_mem_rsp_o     (rx_data_mem_rsp ), // connects to the memory map
         .desc_table_mem_req_i   (rx_meta_mem_req ), // connects to the memory map
@@ -190,5 +190,16 @@ module ethernet_top #(
         .rx_status_o            (rx_status       ), // connects to CSR block
         .rx_config_i            (rx_config       ), // connects to CSR block
         .pop_pkt_i              (rx_pop          )  // connects to CSR block
+    );
+
+    // Instantiate the loopback MUX
+    ethernet_loopback loopback_mux (
+        .clk_i          (clk_125M_i),
+        .rst_ni,
+        .loopback_en    (mac_config.loopback), // select between TX and RX for loopback
+        .axis_tx_ready_i(tx_axis_tready),
+        .axis_tx_i      (tx_axis),
+        .axis_rx_real_i (rx_axis_real),
+        .axis_o         (rx_axis_muxed)
     );
 endmodule

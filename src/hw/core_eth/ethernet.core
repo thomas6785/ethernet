@@ -15,6 +15,9 @@ filesets:
     rtl:
         files:
             - top/ethernet_pkg.sv
+            - loopback/axis_pkt_isolate.sv
+            - loopback/axis_pkt_mux.sv
+            - loopback/ethernet_loopback.sv
             - rx_framing/mac_address_filter.sv
             - rx_framing/ethernet_rx_framing.sv
             - tx_framing/ethernet_tx_framing.sv

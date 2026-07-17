@@ -983,6 +983,30 @@ async def rgmii_simultaneous_tx_rx(dut_wrapped):
     await dut_wrapped.read_packet(0)
     await dut_wrapped.get_transmitted_packet()
 
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True,
+    prep_tx_buffer=True
+)
+async def rgmii_simultaneous_tx_rx_loopback(dut_wrapped):
+    # queue up several packets for RX via RGMII
+    # Start a packet TX via RGMII
+    await dut_wrapped.tx_packet_send(random.randint(56,1518))
+
+    # Start a packet RX via RGMII
+    await dut_wrapped.begin_rx_packet([random.randint(0,255) for _ in range(random.randint(56,1518))])
+
+    # Wait for both to finish
+    await Combine(
+        cocotb.start_soon(dut_wrapped.wait_for_rx_done()),
+        cocotb.start_soon(dut_wrapped.wait_for_tx_done())
+    )
+
+    await dut_wrapped.status_get()
+    await dut_wrapped.read_packet(0)
+    await dut_wrapped.get_transmitted_packet()
+
 # TODO need a test case that covers back-to-back TX/RX e.g. it is conceivable to have a bug that arises if you have back-to-back TX while RX is ongoing or vice-versa
 
 #############

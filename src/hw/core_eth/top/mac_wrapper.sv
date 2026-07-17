@@ -9,17 +9,15 @@ Author: Thomas O'Dea <thomas.odea@lowrisc.org>
 -------------------------------------------------------------------------------
     DESCRIPTION
 -------------------------------------------------------------------------------
-Wrapper around rgmii_soc which creates an RGMII MAC
+Thin wrapper around rgmii_soc which creates an RGMII MAC
 Exposes two AXI Streams:
     - TX: AXI Stream input to the MAC
     - RX: AXI Stream output from the MAC (no backpressure)
-'tuser' should be interpreted as indicating an error in the frame.
 'tlast' should be taken as indicating the end of an Ethernet frame.
+'tuser' should be interpreted as indicating an error in the frame.
 The FCS will not be included in the AXI Stream, but the MAC will check it.
 
-The module handles:
-- Loopback
-- Mapping signal names to the Alex Forencich RGMII MAC core
+The module handles mapping signal names to the Alex Forencich RGMII MAC core
 
 -------------------------------------------------------------------------------
     TESTS
@@ -54,41 +52,6 @@ module mac_wrapper #(
     // AXI Stream output for RX (no backpressure)
     output ethernet_pkg::axis_t             rx_axis_o
 );
-    ////////////////////
-    // Loopback logic //
-    ////////////////////
-    ethernet_pkg::axis_t rx_axis_real;
-    logic loopback_last;
-
-    // If loopback is enabled, the RX path will be driven by the TX path
-    // TODO There is a problem here
-    // A packet can get spliced and because I've moved the loopback path to outside the MAC, there is no CRC to reject spliced packets
-    // My first idea is detect edges in the loopback enable signal and assert tuser for one pulse whenever loopback switches
-    // but then the FOLLOWING packet will get lost because the RX path will have seen the tuser assertion
-    // even if the RX is actually on a fresh packet
-    // so we could assert tuser and tlast for one cycle whenever loopback changes
-    // then assert tuser but not NECESSARILY assert tvalid for one cycle on the next cycle
-    // this is not STRICTLY SPEAKING correct because IN THEORY you could have a packet which does not continuously assert tvalid but is still a single packet
-    // in which case we would miss the 'tuser' pulse and the packet would be accepted despite the splice
-    // The current MAC never does this but it is allowed by AXI Stream spec so it's not good design practice to assume this behaviour
-    // In a perfect world we would use knowledge of the RX state (e.g. byte counter) to determine whether to kill a packet or leave it be
-    // but that breaks layers of abstraction quite badly and will require some awkward signal routing
-    always_ff @ (posedge clk_125M_i or negedge rst_ni) begin
-        if (!rst_ni) begin
-            rx_axis_o.valid <= '0;
-            rx_axis_o.data  <= '0;
-            rx_axis_o.last  <= '0;
-            rx_axis_o.user  <= '0;
-        end else begin
-            // Since there is no backpressure on the RX path, we don't need any buffering
-            // we can simply say the RX is valid when the TX is valid and ready
-            rx_axis_o.valid <= mac_config_i.loopback ? tx_axis_i.valid & tx_axis_tready_o : rx_axis_real.valid;
-            rx_axis_o.data  <= mac_config_i.loopback ? tx_axis_i.data  : rx_axis_real.data;
-            rx_axis_o.last  <= mac_config_i.loopback ? tx_axis_i.last  : rx_axis_real.last;
-            rx_axis_o.user  <= mac_config_i.loopback ? tx_axis_i.user  : rx_axis_real.user;
-        end
-    end
-
     /////////////////////////
     // Instantiate the MAC //
     /////////////////////////
@@ -113,9 +76,9 @@ module mac_wrapper #(
         .tx_axis_tlast  (tx_axis_i.last         ),
         .tx_axis_tready (tx_axis_tready_o       ),
         .tx_axis_tuser  (tx_axis_i.user         ), // Can be used to indicate an error in the frame
-        .rx_axis_tdata  (rx_axis_real.data      ),
-        .rx_axis_tvalid (rx_axis_real.valid     ),
-        .rx_axis_tlast  (rx_axis_real.last      ),
-        .rx_axis_tuser  (rx_axis_real.user      ) // Indicates a CRC error in the received frame
+        .rx_axis_tdata  (rx_axis_o.data         ),
+        .rx_axis_tvalid (rx_axis_o.valid        ),
+        .rx_axis_tlast  (rx_axis_o.last         ),
+        .rx_axis_tuser  (rx_axis_o.user         ) // Indicates a CRC error in the received frame
     );
 endmodule
