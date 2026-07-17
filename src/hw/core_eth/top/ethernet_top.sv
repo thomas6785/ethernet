@@ -89,7 +89,6 @@ module ethernet_top #(
     ethernet_pkg::rx_config_t rx_config;
     ethernet_pkg::rx_status_t rx_status;
     logic rx_pop; // signal from CSR block to RX framing block to pop a packet
-    logic rx_crc_error; // signal from MAC to indicate a CRC error in the received frame
 
     // Connect TX framing to CSR block
     ethernet_pkg::tx_config_t tx_config;
@@ -184,7 +183,6 @@ module ethernet_top #(
         .clk_i(clk_125M_i),
         .rst_ni,
         .rx_axis_i              (rx_axis         ), // connects to MAC output
-        .crc_error_i            (rx_crc_error    ), // connects to MAC output
         .data_buf_mem_req_i     (rx_data_mem_req ), // connects to the memory map
         .data_buf_mem_rsp_o     (rx_data_mem_rsp ), // connects to the memory map
         .desc_table_mem_req_i   (rx_meta_mem_req ), // connects to the memory map

@@ -16,13 +16,12 @@ popped by asserting a pulse on pop_pkt_i, which will free the oldest packet in
 the buffer.
 
 Interfaces:
-    - AXI-Stream input (rx_axis_i) - no backpressure
+    - AXI-Stream input (rx_axis_i) - no backpressure. User-defined signal asserts to indicate that the whole packet is bad
     - Read-only memory interface for the data buffer (data_buf_mem_req_i, data_buf_mem_rsp_o)
     - Read-only memory interface for the descriptor table (desc_table_mem_req_i, desc_table_rsp_o)
     - Statuses (rx_status_o)
     - Configuration (rx_config_i)
     - Pulse to pop the oldest packet (pop_pkt_i)
-    - CRC error input (crc_error_i) - pulses at some point during a bad packet
 
 -------------------------------------------------------------------------------
     TESTS
@@ -40,7 +39,6 @@ module ethernet_rx_framing (
 
     // AXI-Stream input
     input  ethernet_pkg::axis_t     rx_axis_i,
-    input  logic                    crc_error_i, // checked elsewhere
     // backpressure is not allowed on the input stream
 
     // Memory for the data buffer
@@ -167,7 +165,7 @@ module ethernet_rx_framing (
     );
 
     // if the MAC doesn't match and we're not in promiscuous mode, we should drop the packet. Also drop if the CRC is bad
-    assign abandon_packet = ((capture_reason == ethernet_pkg::NON_MAC_MATCH) && ~rx_config_i.promiscuous_mode) || crc_error_i;
+    assign abandon_packet = ((capture_reason == ethernet_pkg::NON_MAC_MATCH) && ~rx_config_i.promiscuous_mode) || (rx_axis_i.user && rx_axis_i.valid);
 
     ////////////////
     // Assertions //
