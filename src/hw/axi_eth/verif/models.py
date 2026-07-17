@@ -505,6 +505,13 @@ class AxiEthernetDutWithMirror():
         dut_state = await self.wrapper.intr_state_get()
         model_state = self.model.intr_state_get()
         assert dut_state == model_state, f"INTR_STATE mismatch: DUT={dut_state}, Model={model_state}"
+
+        # Sneaky: let's also check the IRQ line against the model while we're here (costs no sim time)
+        dut_irq = await self.irq_pending()
+        model_irq = self.model.irq_pending()
+        assert dut_irq == model_irq, f"IRQ_PENDING mismatch: DUT={dut_irq}, Model={model_irq}"
+
+        # Then return the INTR state since that's what the caller expects
         return dut_state
 
     async def intr_mask_set(self, mask):

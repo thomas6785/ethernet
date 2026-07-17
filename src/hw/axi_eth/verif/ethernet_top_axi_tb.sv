@@ -30,6 +30,8 @@ module ethernet_top_axi_tb (
     input logic clk_200M_i,
     input logic rst_ni,
 
+    output logic ethernet_irq_o,
+
     /////////////////////////////
     // Flatten the AXI signals //
     /////////////////////////////
@@ -135,7 +137,6 @@ module ethernet_top_axi_tb (
 
     axi_req_t axi_req_i;
     axi_rsp_t axi_rsp_o;
-    logic ethernet_irq_o;
 
     ethernet_pkg::eth_rgmii_rx_t         eth_rgmii_rx_i;
     ethernet_pkg::eth_rgmii_tx_t         eth_rgmii_tx_o;

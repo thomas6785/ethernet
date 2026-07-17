@@ -1165,32 +1165,185 @@ async def err_write_status_reg(dut_wrapped):
     bresp = await dut_wrapped._axi_driver.write(0x0814,random.randbytes(4)) # TODO not ideal to have hardcoded this address
     assert bresp.resp == 2 # slave error expected
 
-note = """
-This file is now over 1k lines long and could do with refactoring
+###################
+# Interrupt tests #
+###################
 
-I would like to split it into a few files:
-- a top-level that pulls in all the tests
-- various different files for different categories of tests (though this may be difficult to do cleanly because some tests fall into multiple categories)
-- utilities for driving the DUT - like the wrapper I already have but with more functionality
-- SW models of the DUT - including the existing model but also maybe a cycle-accurate model would be good
-- utilities for creating tests - e.g. decorators and wrappers so I can create tests with less boilerplate
-
-What I would like:
-@test(
+@create_test(
+    with_mirror=True,
     loopback=True,
     promiscuous=True,
-    model="cycle-accurate",
-    skip=False,
-    prime_dut_state=True,         # before the test, push then pop some packets to move the pointers around a bit. There should be a global disable for this since it will slow down tests a lot
-    seed=1234                     # not sure about this but it might be simpler to seed each test individually rather than globally
+    prep_tx_buffer=True
 )
+async def intr_packet_pending_test(dut_wrapped):
+    await dut_wrapped.intr_mask_set(0x1) # Enable packet pending interrupt
 
-also things like:
-    @test_recovery(*args)
-which includes what I've described above but also runs a health test at the end to ensure the DUT is in a good state, useful for checking that the DUT can recover from unexpected behaviour
+    # Send a packet to trigger the interrupt
+    await dut_wrapped.tx_packet_send(64)
+    await dut_wrapped.wait_for_tx_done()
 
-I also want to focus on writing more tests with lots of parallel things ongoing so it could be worth having a decorator to do things like:
-- generate random bus activity (that won't interfere with the test)
-- introduce clock jitter
+    # Check the interrupt state
+    intr_state = await dut_wrapped.intr_state_get()
+    assert intr_state & 0x1, "Expected packet pending interrupt"
+    assert (await dut_wrapped.irq_pending())
 
-"""
+    # Pop the packet
+    await dut_wrapped.rx_pop_packet()
+
+    # Check the interrupt state again
+    intr_state = await dut_wrapped.intr_state_get()
+    assert not (intr_state & 0x1), "Expected packet pending interrupt to be cleared after popping packet"
+    assert not (await dut_wrapped.irq_pending())
+
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True,
+    prep_tx_buffer=True
+)
+async def intr_table_almost_full_test(dut_wrapped):
+    await dut_wrapped.intr_mask_set(0x2) # Enable table almost full interrupt
+
+    # Send packets to fill the table and check the status after each one
+    for i in range(8):
+        # Send a packet
+        await dut_wrapped.tx_packet_send(64)
+        await dut_wrapped.wait_for_tx_done(tail_after_done=10)
+        # Check the interrupt state
+        intr_state = await dut_wrapped.intr_state_get()
+        if i >= 6:
+            assert intr_state & 0x2, "Expected table almost full interrupt"
+            assert (await dut_wrapped.irq_pending())
+
+    for i in range(8):
+        # Pop a packet to clear the almost full condition
+        await dut_wrapped.rx_pop_packet()
+
+        # Check the interrupt state again
+        intr_state = await dut_wrapped.intr_state_get()
+        if i >= 2:
+            assert not (intr_state & 0x2), "Expected table almost full interrupt to be cleared after popping packet"
+            assert not (await dut_wrapped.irq_pending())
+
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True,
+    prep_tx_buffer=True
+)
+async def intr_table_full_test(dut_wrapped):
+    await dut_wrapped.intr_mask_set(0x4) # Enable table full interrupt
+
+    # Send packets to fill the table and check the status after each one
+    for _ in range(8):
+        # Send a packet
+        await dut_wrapped.tx_packet_send(64)
+        await dut_wrapped.wait_for_tx_done(tail_after_done=10)
+        # Check the interrupt state
+        await dut_wrapped.intr_state_get()
+        await dut_wrapped.irq_pending()
+
+    assert (await dut_wrapped.irq_pending())
+
+    for _ in range(8):
+        # Pop a packet to clear the full condition
+        await dut_wrapped.rx_pop_packet()
+
+        # Check the interrupt state again
+        await dut_wrapped.intr_state_get()
+        await dut_wrapped.irq_pending()
+
+    assert not (await dut_wrapped.irq_pending())
+
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True,
+    prep_tx_buffer=True
+)
+async def intr_buffer_almost_full_test(dut_wrapped):
+    await dut_wrapped.intr_mask_set(0x8) # Enable buffer almost full interrupt
+
+    # Send packets to fill the buffer and check the status after each one
+    for _ in range(5):
+        # Send a packet
+        await dut_wrapped.tx_packet_send(random.randint(1350,1518))
+        await dut_wrapped.wait_for_tx_done(tail_after_done=10)
+        # Check the interrupt state
+        intr_state = await dut_wrapped.intr_state_get()
+        await dut_wrapped.irq_pending()
+
+    assert intr_state & 0x8, "Expected buffer almost full interrupt"
+    assert (await dut_wrapped.irq_pending())
+
+    for _ in range(5):
+        # Pop a packet to clear the almost full condition
+        await dut_wrapped.rx_pop_packet()
+
+        # Check the interrupt state again
+        intr_state = await dut_wrapped.intr_state_get()
+        await dut_wrapped.irq_pending()
+
+    assert not (intr_state & 0x8), "Expected buffer almost full interrupt to be cleared after popping packet"
+    assert not (await dut_wrapped.irq_pending())
+
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True,
+    prep_tx_buffer=True
+)
+async def intr_packet_lost_test(dut_wrapped):
+    await dut_wrapped.intr_mask_set(0x10) # Enable packet lost interrupt
+
+    # Send packets to fill the table and check the status after each one
+    for _ in range(8):
+        # Send a packet
+        await dut_wrapped.tx_packet_send(64)
+        await dut_wrapped.wait_for_tx_done(tail_after_done=10)
+        # Check the interrupt state
+        intr_state = await dut_wrapped.intr_state_get()
+        assert not (intr_state & 0x10), "Expected packet lost interrupt to be clear"
+
+    # Send one more packet which should be lost
+    await dut_wrapped.tx_packet_send(64)
+    await dut_wrapped.wait_for_tx_done(tail_after_done=10)
+
+    # Check the interrupt state
+    intr_state = await dut_wrapped.intr_state_get()
+    assert intr_state & 0x10, "Expected packet lost interrupt"
+    assert (await dut_wrapped.irq_pending())
+
+    # Clear the lost condition
+    await dut_wrapped.clear_packet_lost_flag()
+
+    # Check the interrupt state again
+    intr_state = await dut_wrapped.intr_state_get()
+    assert not (intr_state & 0x10), "Expected packet lost interrupt to be cleared after popping packet"
+    assert not (await dut_wrapped.irq_pending())
+
+@create_test(
+    with_mirror=True,
+    loopback=True,
+    promiscuous=True,
+    prep_tx_buffer=True
+)
+async def intr_tx_done(dut_wrapped):
+    await dut_wrapped.intr_mask_set(0x20) # Enable TX done interrupt
+
+    # Send a packet to trigger the interrupt
+    await dut_wrapped.tx_packet_send(64)
+    await dut_wrapped.wait_for_tx_done(tail_after_done=10)
+
+    # Check the interrupt state
+    intr_state = await dut_wrapped.intr_state_get()
+    assert intr_state & 0x20, "Expected TX done interrupt"
+    assert (await dut_wrapped.irq_pending())
+
+    # Clear the TX done condition
+    await dut_wrapped.clear_tx_done_flag()
+
+    # Check the interrupt state again
+    intr_state = await dut_wrapped.intr_state_get()
+    assert not (intr_state & 0x20), "Expected TX done interrupt to be cleared after clearing flag"
+    assert not (await dut_wrapped.irq_pending())
