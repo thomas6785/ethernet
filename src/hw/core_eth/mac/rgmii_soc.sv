@@ -25,27 +25,20 @@ Wrapper for rgmii_core
 
 This:
     - Adds IO delay to physical i/o for timing closure
-    - Adds a loopback mode for testing (which loops the RGMII signals from TX back to RX)
-    - Adds an option to inject errors in loopback mode
-
-The datapath is illustrated below with the loopback shown
-The loopback path includes the high-level interfaces, buffering and FIFOs, and the MAC logic
-The loopback path excludes the DDR converters and the Ethernet physical layer
-
 
                                 |--------------------------------------This module-------------------------------------------|
                                 |                                                                                            |
                                 |                                                                                            |
     |---------------|           |        |--------------|                                       |-------------------|        |                  |-------------------|
     |  TX Buffer(s) | ---AXI Stream--->  |  TX MAC      | ---RGMII (8-bits wide)------------->  |  TX PHY IF (ODDR) |  ---RGMII (4-bits DDR)--> | TX PHY (off-chip) | =========|
-    |---------------|           |        |--------------|                           ||          |-------------------|        |                  |-------------------|          |
-                                |                                                   ||                                       |                                                 |
-                                |                                                Loopback                                    |                                              Ethernet
-                                |                                                   ||                                       |                                               Cable
-                                |                                                   \/                                       |                                                 |
-    |---------------|           |        |--------------|                         |-----|       |-------------------|        |                  |-------------------|          |
-    |  RX Buffer(s) | <--AXI Stream----  |  RX MAC      | <--RGMII (8-bits wide)--| MUX | <---  |  RX PHY IF (IDDR) |  <--RGMII (4-bits DDR)--0 | RX PHY (off-chip) | =========|
-    |---------------|           |        |--------------|                         |-----|       |-------------------|        |                  |-------------------|
+    |---------------|           |        |--------------|                                       |-------------------|        |                  |-------------------|          |
+                                |                                                                                            |                                                 |
+                                |                                                                                            |                                              Ethernet
+                                |                                                                                            |                                               Cable
+                                |                                                                                            |                                                 |
+    |---------------|           |        |--------------|                                       |-------------------|        |                  |-------------------|          |
+    |  RX Buffer(s) | <--AXI Stream----  |  RX MAC      | <--RGMII (8-bits wide)--------------  |  RX PHY IF (IDDR) |  <--RGMII (4-bits DDR)--0 | RX PHY (off-chip) | =========|
+    |---------------|           |        |--------------|                                       |-------------------|        |                  |-------------------|
                                 |                                                                                            |
                                 |--------------------------------------------------------------------------------------------|
 */
@@ -89,11 +82,7 @@ module rgmii_soc #
     output wire [7:0]  rx_axis_tdata,
     output wire        rx_axis_tvalid,
     output wire        rx_axis_tlast,
-    output             rx_axis_tuser,
-
-    // Loopback option
-    input  logic loopback_i,
-    input  logic loopback_inject_err_i
+    output             rx_axis_tuser
 );
 
 // IODELAY elements for RGMII interface to PHY
@@ -243,10 +232,7 @@ rgmii_core #(
     .rx_axis_tlast   (rx_axis_tlast),
     .rx_axis_tuser   (rx_axis_tuser),
     .rx_fcs_reg      (),
-    .tx_fcs_reg      (),
-
-    .loopback_i(loopback_i),
-    .loopback_inject_err_i(loopback_inject_err_i)
+    .tx_fcs_reg      ()
 );
 
     ////////////////

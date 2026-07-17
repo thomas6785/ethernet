@@ -481,10 +481,6 @@ class misc_test_cases extends test_base;
         this.basic_loopback_test();
 
         this.reset_dut();
-        this.scb.new_test("Loopback with injected error test");
-        this.loopback_injected_error_test();
-
-        this.reset_dut();
         this.scb.new_test("MAC filtering test");
         this.mac_filtering_test();
         this.scb.new_test("Promiscuous mode test");
@@ -514,27 +510,6 @@ class misc_test_cases extends test_base;
         this.scb.assert_equal(lengths_out[0], 64, "length"); // 64 = 58 payload, 6 MAC address
         expect_rx_buf_data_match(ptrs_out[0]+6, test_data[0:57]);
         // add 6 bytes to the pointer to skip the MAC address
-    endtask
-
-    task loopback_injected_error_test();
-        logic [7:0]     test_data[];
-        pkt_metadata_t  metadata_out[8];
-        pkt_len_t       lengths_out[8];
-        logic [31:0]    ptrs_out[8];
-        logic [31:0] status;
-
-        enable_loopback();
-        randomise_test_data(test_data);
-        fork
-            tx_packet(48'hFF_FF_FF_FF_FF_FF, test_data[0:57]);
-            begin
-                @(posedge this.tb_if.eth_rgmii_tx_o.en); // wait for transmission to start
-                repeat(30) @(posedge this.tb_if.clk_125M_i); // wait a couple cycles to be in the middle of the transaction
-                write_reg('h810,6);
-            end
-        join
-        read_status_reg(status);
-        this.scb.assert_equal(status, 32'h0, "status reg"); // should be no packets since that one was corrupted
     endtask
 
     task mac_filtering_test();

@@ -90,9 +90,7 @@ module eth_mac_1g_rgmii_wrapper #
     /*
      * Configuration
      */
-    input wire [7:0]   ifg_delay,
-    input wire loopback_i,
-    input wire loopback_inject_err_i
+    input wire [7:0]   ifg_delay
 );
 
 wire tx_clk;
@@ -185,9 +183,7 @@ eth_mac_1g_rgmii_inst (
     .rx_fcs_reg(rx_fcs_reg),
     .tx_fcs_reg(tx_fcs_reg),
     .speed(speed_int),
-    .ifg_delay(ifg_delay),
-    .loopback_i(loopback_i),
-    .loopback_inject_err_i(loopback_inject_err_i)
+    .ifg_delay(ifg_delay)
 );
 
 endmodule

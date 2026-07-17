@@ -7,7 +7,6 @@ TODO attach a table of roadmap features organised by type and priority
 Put the following into a register together called `TX_ctrl`:
 * TX packet length
 * Loopback enable - this should be considered a configuration field for TX, not RX
-* Loopback error inject - this should also be reworked to behave as a self-clearing flag or a countdown timer rather than a pulse, allowing the host to more easily inject errors into the middle of a packet without precisely timing the register write
 * (read-only) current position of the TX pointer (maybe - see below)
 * pointer to packet head in memory for DMA engine (maybe - see below)
 

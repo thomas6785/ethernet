@@ -30,6 +30,7 @@ filesets:
             - rx_framing/ethernet_rx_framing.sv
             - tx_framing/ethernet_tx_framing.sv
             - csr/ethernet_csr.sv
+            - top/mac_wrapper.sv
             - top/ethernet_mem_map.sv
             - top/ethernet_top.sv
         file_type: systemVerilogSource

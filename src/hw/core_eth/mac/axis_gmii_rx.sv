@@ -246,7 +246,7 @@ always @* begin
     end
 end
 
-always @(posedge clk or posedge rst) begin
+always @(posedge clk) begin // TODO switch to asynchronous reset here, but it breaks synthesis because of the bad design pattern used here
     if (rst) begin
         state_reg <= STATE_IDLE;
 

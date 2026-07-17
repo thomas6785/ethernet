@@ -28,7 +28,6 @@ typedef enum [[clang::flag_enum]] ethernet_ctrl : uint32_t {
     ethernet_ctrl_none = 0,
     ethernet_ctrl_promiscuous_mode = (1u << 0),
     ethernet_ctrl_loopback = (1u << 1),
-    ethernet_ctrl_loopback_inject_err = (1u << 2),
 } ethernet_ctrl;
 
 typedef struct [[gnu::aligned(4)]] {

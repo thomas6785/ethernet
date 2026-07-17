@@ -76,10 +76,7 @@ module rgmii_core #
      */
 
     output wire [31:0] rx_fcs_reg,
-    output wire [31:0] tx_fcs_reg,
-
-    input wire loopback_i,
-    input wire loopback_inject_err_i
+    output wire [31:0] tx_fcs_reg
 );
 
 assign phy_reset_n = !rst;
@@ -122,9 +119,7 @@ eth_mac_inst (
     .tx_fcs_reg(tx_fcs_reg), // frame check sequence value
     .speed(),
 
-    .ifg_delay(12), // inter-frame gap is required to be 12 bytes or more per Ethernet standards
-    .loopback_i(loopback_i),
-    .loopback_inject_err_i(loopback_inject_err_i)
+    .ifg_delay(12) // inter-frame gap is required to be 12 bytes or more per Ethernet standards
 );
 
 endmodule

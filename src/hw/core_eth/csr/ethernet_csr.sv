@@ -81,7 +81,8 @@ module ethernet_csr (
     assign bad_request = (
         (bad_addr)                    || // access to undefined register
         (mem_req_i.addr[1:0] != 2'h0) || // unaligned access
-        ((mem_req_i.be != 8'h0F) & (mem_req_i.be != 8'hF0) & (mem_req_i.we)) // do not allow writing 0 or 2 CSRs simultaneously
+        ((mem_req_i.be != 8'h0F) & (mem_req_i.be != 8'hF0) & (mem_req_i.we)) || // do not allow writing 0 or 2 CSRs simultaneously
+        (mem_req_i.we && (reg_addr inside {REG_STATUS_ADDR,REG_VENDOR_ID_ADDR,REG_DEVICE_ID_ADDR,REG_MAGIC_NUM_ADDR})) // do not allow writes to read-only registers
     );
     assign mem_rsp_o.gnt = mem_req_i.req;
 
@@ -94,7 +95,6 @@ module ethernet_csr (
     logic manual_irq_sticky;
     logic packet_lost_sticky;
 
-    logic loopback_inject_err;
     logic loopback_mode;
     logic promiscuous_mode;
     logic [47:0] mac_addr;
@@ -165,7 +165,6 @@ module ethernet_csr (
             loopback_mode    <= mem_req_i.data[1];
         end
     end
-    assign loopback_inject_err = (write && (reg_addr == REG_CTRL_ADDR) && mem_req_i.data[2]); // inject a single-bit error in loopback mode whenever bit 2 is written to 1
 
     // Registers MACLO and MACHI
     always_ff @ (posedge clk_i or negedge rst_ni) begin
@@ -270,7 +269,6 @@ module ethernet_csr (
     assign irq_o = |(intr_mask & interrupts); // interrupt output is the masked combination of all interrupt sources
 
     assign mac_config_o.loopback = loopback_mode;
-    assign mac_config_o.loopback_inject_err = loopback_inject_err;
 
     assign eth_rgmii_mdio_o.o = mdio_o;
     assign eth_rgmii_mdio_o.oen = mdio_oen;
@@ -289,7 +287,6 @@ module ethernet_csr (
 
     // Assert that the outputs are known
     `ASSERT_KNOWN(MacConfigOLoopback_A         , mac_config_o.loopback);
-    `ASSERT_KNOWN(MacConfigOLoopbackErr_A      , mac_config_o.loopback_inject_err);
     `ASSERT_KNOWN(RxConfigOMacAddr_A           , rx_config_o.mac_addr);
     `ASSERT_KNOWN(RxConfigOPromiscuousMode_A   , rx_config_o.promiscuous_mode);
     `ASSERT_KNOWN(RxPopO_A                     , rx_pop_o);
@@ -302,7 +299,6 @@ module ethernet_csr (
 
     // Assert the values under reset
     `ASSERT(RstCfgLoopback_A,      !rst_ni |-> mac_config_o.loopback == 1'b0,                       clk_i, 0);
-    `ASSERT(RstCfgLoopbackErr_A,   !rst_ni |-> mac_config_o.loopback_inject_err == 1'b0,            clk_i, 0);
     `ASSERT(RstCfgPromiscuous_A,   !rst_ni |-> rx_config_o.promiscuous_mode == 1'b0,                clk_i, 0);
     `ASSERT(RstCfgMacAddr_A,       !rst_ni |-> rx_config_o.mac_addr == 48'h0,                       clk_i, 0);
     `ASSERT(RstCfgTxPacketLen_A,   !rst_ni |-> tx_config_o.packet_len == 11'h0,                     clk_i, 0);

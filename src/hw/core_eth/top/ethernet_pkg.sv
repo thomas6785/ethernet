@@ -96,6 +96,7 @@ package ethernet_pkg;
         logic [7:0] data;
         logic       last;
         logic       valid;
+        logic       user;
     } axis_t;
 
     ///////////////////////////
@@ -130,7 +131,6 @@ package ethernet_pkg;
     } tx_config_t;
 
     typedef struct packed {
-        logic loopback_inject_err;
         logic loopback;
     } mac_config_t;
 

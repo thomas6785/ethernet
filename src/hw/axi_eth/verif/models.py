@@ -92,8 +92,6 @@ class AxiEthernetABC(ABC):
     @abstractmethod
     def irq_pending(self): pass
     @abstractmethod
-    def inject_crc_error(self): pass
-    @abstractmethod
     def get_transmitted_packet(self): pass
 
 class AxiEthernetModel():
@@ -313,10 +311,6 @@ class AxiEthernetModel():
         return self.intr_mask_get() & self.intr_state_get() != 0
 
     @log_calls
-    def inject_crc_error(self):
-        self.rx_packet_in_progress_bad = True
-
-    @log_calls
     def tx_busy(self):
         return self.tx_packet_in_progress is not None
 
@@ -387,12 +381,11 @@ class AxiEthernetWrapper():
     async def status_get(self) -> int:
         return int.from_bytes((await self._axi_driver.read(csr.STATUS, 4)).data, byteorder='little')
 
-    async def mode_set(self, promiscuous_en, loopback_en, inject_crc_err=False):
+    async def mode_set(self, promiscuous_en, loopback_en):
         return (await self._axi_driver.write(
             csr.CTRL,(
                 promiscuous_en |
-                (loopback_en<<1) |
-                (inject_crc_err<<2)
+                (loopback_en<<1)
             ).to_bytes(4, byteorder='little')
         ))
 
@@ -477,10 +470,6 @@ class AxiEthernetWrapper():
 
     async def irq_pending(self):
         return bool(self.dut.ethernet_irq_o.value)
-
-    async def inject_crc_error(self):
-        promiscuous,loopback_en = await self.mode_get()
-        await self.mode_set(promiscuous, loopback_en, inject_crc_err=True)
 
     async def tx_busy(self):
         return bool((await self.status_get()) & (1 << 7))
@@ -634,10 +623,6 @@ class AxiEthernetDutWithMirror():
         model_irq = self.model.irq_pending()
         assert dut_irq == model_irq, f"IRQ_PENDING mismatch: DUT={dut_irq}, Model={model_irq}"
         return dut_irq
-
-    async def inject_crc_error(self):
-        await self.wrapper.inject_crc_error()
-        self.model.inject_crc_error()
 
     async def tx_busy(self):
         dut_busy = await self.wrapper.tx_busy()

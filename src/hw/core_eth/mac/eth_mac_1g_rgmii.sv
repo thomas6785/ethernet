@@ -94,9 +94,7 @@ module eth_mac_1g_rgmii #
     /*
      * Configuration
      */
-    input wire [7:0]  ifg_delay,
-    input wire loopback_i,
-    input wire loopback_inject_err_i
+    input wire [7:0]  ifg_delay
 );
 
 wire [7:0]  mac_gmii_rxd;
@@ -232,9 +230,7 @@ rgmii_phy_if_inst (
     .phy_rgmii_txd(rgmii_txd),
     .phy_rgmii_tx_ctl(rgmii_tx_ctl),
 
-    .speed(speed),
-    .loopback_i(loopback_i),
-    .loopback_inject_err_i(loopback_inject_err_i)
+    .speed(speed)
 );
 
 eth_mac_1g #(

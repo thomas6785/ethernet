@@ -74,7 +74,6 @@ module ethernet_csr_cov;
             bins illegal_high = {[11'd1519:11'd2046]};
             bins sat = {11'd2047};
         }; // cover min, max, and random packet lengths
-        cp_inject_err   : coverpoint ethernet_csr.mac_config_o.loopback_inject_err; // cover true or false
         cp_kick_tx      : coverpoint ethernet_csr.tx_kick_o; // cover true or false
 
         ///////////////
@@ -101,10 +100,10 @@ module ethernet_csr_cov;
         ////////////////
         // TX Crosses //
         ////////////////
-        cp_inject_errXkick_tx : cross cp_inject_err, cp_kick_tx; // cover all combinations of inject error and kick TX
         cp_tx_busyXkick_tx : cross cp_tx_busy, cp_kick_tx; // cover all combinations of TX busy and kick TX
         cp_tx_doneXkick_tx : cross cp_tx_done, cp_kick_tx; // cover all combinations of TX done and kick TX (getting both simultaneously could be tricky!)
     endgroup
+    // TODO cover reads/writes to every register
 
     ethernet_csr_cg ethernet_csr_cg_inst;
     initial ethernet_csr_cg_inst = new();

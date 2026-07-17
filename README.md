@@ -66,13 +66,11 @@ A second memory region stores metadata about each packet - it has capacity for 8
 > **NOTE:** The oldest packet in the buffer is always stored at memory location 0 in the metadata table. Usually, the software should always read the metadata for packet 0, then pop that packet, and read the new packet 0, however you can also 'peek' at newer packets by reading later indices.
 
 ## Loopback
-The Ethernet IP supports a loopback mode for testability. The loopback path includes the TX/RX framing mechanisms and most (but not all) of the MAC data paths.
+The Ethernet IP supports a loopback mode for testability. The loopback path includes the TX/RX framing mechanisms but not the MAC and PHY.
 
 The loopback multiplexes the RX path. Therefore, while in loopback mode, RX packets arriving from the PHY will be ignored.
 
 The TX path is still NOT masked during loopback i.e. packets you write in loopback mode are still exposed to the PHY.
-
-There is also a register to inject an error into the loopback path for testing error detection.
 
 ## Interrupts
 The interrupt state register has four status-type interrupts and three event-type interrupts.
@@ -128,7 +126,6 @@ A 'splice' will never occur because the frame check sequence will be invalid and
 ### TX Reconfiguring
 Reconfiguring the TX path includes:
 * Writing the ```TX_CTRL``` register (where you specify the length of the TX packet)
-* Writing the ```loopback_inject_err``` field
 
 The MAC address registers do not affect TX.
 
@@ -137,7 +134,6 @@ A write to ```TX_CTRL``` while another TX is in progress is forbidden. The maste
 Similarly, a write to the TX buffer while a TX is in progress is forbidden.
 <!-- note: see ROADMAP for ideas about how to fix this, as it is a performance bottleneck -->
 
-Writing to ```loopback_inject_err``` will inject a bitflip into the loopback data path for one cycle. It is intended to be written to during TX for testing of the CRC logic.
 <!-- note: also see ROADMAP.md for idea about improving this -->
 
 ## Hardware Abstraction Layer

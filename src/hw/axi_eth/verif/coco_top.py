@@ -729,32 +729,7 @@ async def packet_lost_recovery_test(dut_wrapped):
 ##############
 # CRC stress #
 ##############
-@create_test(
-    loopback=True,
-    promiscuous=True
-)
-async def crc_error_injection_test(dut_wrapped):
-    # Begin a loopback transmission
-    pkt_len = random.randint(56,1518)
-    for i in range((pkt_len+7)//8):
-        await dut_wrapped.tx_buffer_write64(i,random.randint(0,0xFFFFFFFFFFFFFFFF))
-    await dut_wrapped.tx_packet_send(pkt_len)
-
-    # Wait until transmission is in progress
-    while not (await dut_wrapped.wrapper.tx_busy()):
-        await RisingEdge(dut_wrapped.dut.clk_125M_i)
-    for _ in range(random.randint(1,30)):
-        await RisingEdge(dut_wrapped.dut.clk_125M_i)
-
-    # Inject an error
-    await dut_wrapped.inject_crc_error()
-
-    # Wait for TX to complete
-    await dut_wrapped.wait_for_tx_done()
-
-    # Check that no packet was received
-    await dut_wrapped.status_get()
-    assert not (await dut_wrapped.rx_packet_pending()), "Expected no packet after injecting CRC error"
+# TODO test the CRC detects transmission errors!
 
 ######################
 # Bad state recovery #
@@ -818,7 +793,6 @@ async def change_loopback_during_loopback(dut_wrapped):
     promiscuous=True,
     health_test_after=True,
 )
-
 async def change_promiscuous_during_loopback(dut_wrapped):
     await dut_wrapped.tx_packet_send(1518) # START sending a packet with promiscuous on
 

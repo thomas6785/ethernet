@@ -128,17 +128,9 @@ addrmap ethernet {
         loopback->desc = "Internal loopback enable.
             0 = normal operation;
             1 = internally loop back transmitted frames to the RX path for testing
-        Loop includes framing, CRC, and MAC logic but NOT physical layer which is implemented off-chip.
+        Loop includes framing logic but NOT the MAC and PHY.
         Does not affect MDIO.
         The incoming RX data will be ignored while in loopback mode. TX packets are still sent out.";
-
-        field {
-            sw    = w;
-            hw    = r;
-            singlepulse = true;
-            reset = 1'b0;
-            desc = "Loopback error injection. Write 1 to invert loopback data. Pulses for one cycle of clk_125M_i (which is one bit of loopback data). Reads as zero.";
-        } loopback_inject_err[2:2];
 
     } CTRL @ 0x0810;
 

@@ -92,6 +92,7 @@ module ethernet_tx_framing (
     //////////////////////
     // TX FSM and logic //
     //////////////////////
+    assign tx_axis_o.user = '0; // user signal used to indicate errors, not used for TX for now
     always_ff @ (posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
             tx_busy <= 1'b0;

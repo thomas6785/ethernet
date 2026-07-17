@@ -111,33 +111,25 @@ module ethernet_top #(
     mem_if_utils_pkg::mem_rsp_t reg_mem_rsp;
 
     // Instantiate MAC
-    rgmii_soc #(
+    mac_wrapper #(
         .TARGET(TARGET)
-    ) rgmii_soc_inst (
-        .rst_int        (~rst_ni                ), // rgmii_soc uses active HIGH reset (boy did I waste a lot of time discovering that)
-        .clk_int        (clk_125M_i             ),
-        .clk90_int      (clk_125M_quad_i        ),
-        .clk_200_int    (clk_200M_i             ),
-
-        .phy_rx_clk     (eth_rgmii_rx_i.clk     ),
-        .phy_rxd        (eth_rgmii_rx_i.d       ),
-        .phy_rx_ctl     (eth_rgmii_rx_i.ctl     ),
-        .phy_tx_clk     (eth_rgmii_tx_o.clk     ),
-        .phy_txd        (eth_rgmii_tx_o.d       ),
-        .phy_tx_ctl     (eth_rgmii_tx_o.en      ),
-        .phy_reset_n    (phy_reset_no           ),
-        .mac_gmii_tx_en (mac_status.tx_busy     ),
-        .tx_axis_tdata  (tx_axis.data           ),
-        .tx_axis_tvalid (tx_axis.valid          ),
-        .tx_axis_tlast  (tx_axis.last           ),
-        .tx_axis_tready (tx_axis_tready         ),
-        .tx_axis_tuser  (1'b0                   ), // Can be used to indicate an error in the frame
-        .rx_axis_tdata  (rx_axis.data           ),
-        .rx_axis_tvalid (rx_axis.valid          ),
-        .rx_axis_tlast  (rx_axis.last           ),
-        .rx_axis_tuser  (rx_crc_error           ), // Indicates a CRC error in the received frame
-        .loopback_i     (mac_config.loopback    ),
-        .loopback_inject_err_i(mac_config.loopback_inject_err)
+    ) mac_wrapper_inst (
+        // Clocks and resets
+        .clk_125M_i       (clk_125M_i),
+        .rst_ni           (rst_ni),
+        .clk_125M_quad_i  (clk_125M_quad_i),
+        .clk_200M_i       (clk_200M_i),
+        .phy_reset_no     (phy_reset_no),
+        // Config/status
+        .mac_status_o     (mac_status),
+        .mac_config_i     (mac_config),
+        // RGMII interfaces
+        .rgmii_rx_i       (eth_rgmii_rx_i),
+        .rgmii_tx_o       (eth_rgmii_tx_o),
+        // AXI Stream interfaces
+        .tx_axis_i        (tx_axis),
+        .tx_axis_tready_o (tx_axis_tready),
+        .rx_axis_o        (rx_axis)
     );
 
     // Instantiate CSR block
