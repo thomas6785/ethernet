@@ -12,17 +12,6 @@ filesets:
             - lowrisc:prim_generic:all
         file_type: systemVerilogSource
 
-    synth_only:
-        files:
-            - /nas/lowrisc/tools/xilinx/Vivado/2021.1/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv
-        file_type: systemVerilogSource
-        # This XPM is used to instantiate dual-port memory with different data widths on each port
-        # TODO remove this hardcoded path
-
-        depend:
-            - lowrisc:prim_xilinx:all
-        # including this will cause any virtual cores to point to their corresponding XILINX concrete cores (as opposed to generic primitives)
-
     rtl:
         files:
             - top/ethernet_pkg.sv

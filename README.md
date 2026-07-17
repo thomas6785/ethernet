@@ -158,7 +158,7 @@ The table below outlines two top-level cores and various targets available for t
 | Description         | Basic Ethernet top with a simple memory interface | Wrapper around `ethernet_top` with an AXI interface |
 | **FuseSoC Targets** | | |
 | `target=sim`        | Vivado simulation        | Verilator/CocoTB simulation  |
-| `target=synth`      | Vivado synthesis         | Vivado synthesis             |
+| `target=trial_synth`| -                        | Vivado synthesis             |
 | `target=lint`       | Verilator lint           | Verilator lint               |
 
 To invoke a flow, run:
