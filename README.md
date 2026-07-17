@@ -191,8 +191,6 @@ A typical test flow is:
 * Perform the behaviour being tested
 * Get the DUT status and read the data buffers. The ```get``` calls will prompt the testbench to compare the DUT with the model.
 
-> **NOTE**: The helper methods and decorators available for creating tests are due for overhaul. Currently there are three test 'types': `test_w_wrapper`, `test_w_model`, and `test_w_model_loopback_promiscuous`. All three wrap the DUT in a wrapper which provides basic access, and reset the DUT before beginning the test. The latter two pair it with a mirror model against which all reads will be checked. The latter one will enable loopback and promiscuous mode, as these are required for a lot of tests.
-
 ## Coverage
 The AXI top supports coverage tracking (the Vivado simulation does not). The table below shows three kinds of coverage.
 
