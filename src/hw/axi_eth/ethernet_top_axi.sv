@@ -75,47 +75,47 @@ module ethernet_top_axi #(
     mem_if_utils_pkg::mem_rsp_t eth_mem_rsp;
 
     logic eth_rvalid;
-    logic eth_we_q;
-
     always_ff @ (posedge clk_125M_i or negedge rst_ni) begin
-        if (!rst_ni) begin
-            eth_we_q <= 1'b0;
-            eth_rvalid <= 1'b0;
-        end else begin
-            eth_we_q <= eth_mem_req.we;
-            eth_rvalid <= eth_mem_rsp.gnt && eth_mem_req.req;
-        end
+        if (!rst_ni)    eth_rvalid <= 1'b0;
+        else            eth_rvalid <= eth_mem_rsp.gnt && eth_mem_req.req;
     end
 
     // AXI to memory interface
-    axi_to_mem #(
-        .axi_req_t  ( axi_req_t              ),
-        .axi_resp_t ( axi_rsp_t              ),
-        .AddrWidth  ( 64                     ),
-        .DataWidth  ( 64                     ),
-        .IdWidth    ( 4                      ),
-        .NumBanks   ( 1                      )
-    ) u_eth_axi_to_mem (
-        .clk_i  (clk_125M_i),
-        .rst_ni (rst_ni),
-
-        // AXI interface.
-        .busy_o     ( ),
-        .axi_req_i  (axi_req_i),
-        .axi_resp_o (axi_rsp_o),
-
-        // Memory interface.
-        .mem_req_o    (eth_mem_req.req),
-        .mem_gnt_i    (eth_mem_rsp.gnt),
-        .mem_addr_o   (eth_mem_req.addr),
-        .mem_wdata_o  (eth_mem_req.data),
-        .mem_strb_o   (eth_mem_req.be),
-        .mem_atop_o   ( ), // TODO route this to error
-        .mem_we_o     (eth_mem_req.we),
-        .mem_rvalid_i (eth_rvalid),
-        .mem_rdata_i  (eth_we_q ? 64'hBADDBADDBADDBADD : eth_mem_rsp.data)
+    axi_to_detailed_mem #(
+        .axi_req_t    ( axi_req_t    ),
+        .axi_resp_t   ( axi_rsp_t    ),
+        .AddrWidth    ( 64           ),
+        .DataWidth    ( 64           ),
+        .IdWidth      ( 4            ),
+        .UserWidth    ( 1            ),
+        .NumBanks     ( 1            )
+    ) i_axi_to_detailed_mem (
+        .clk_i           ( clk_125M_i       ),
+        .rst_ni          ( rst_ni           ),
+        .busy_o          (),
+        .axi_req_i       ( axi_req_i        ),
+        .axi_resp_o      ( axi_rsp_o        ),
+        .mem_req_o       ( eth_mem_req.req  ),
+        .mem_gnt_i       ( eth_mem_rsp.gnt  ),
+        .mem_addr_o      ( eth_mem_req.addr ),
+        .mem_wdata_o     ( eth_mem_req.data ),
+        .mem_strb_o      ( eth_mem_req.be   ),
+        .mem_atop_o      (), // ignored
+        .mem_lock_o      (), // ignored
+        .mem_we_o        ( eth_mem_req.we   ),
+        .mem_id_o        (), // ignored
+        .mem_user_o      (), // ignored
+        .mem_cache_o     (), // ignored
+        .mem_prot_o      (), // ignored
+        .mem_qos_o       (), // ignored
+        .mem_region_o    (), // ignored
+        .mem_cheri_tag_o (), // ignored
+        .mem_rvalid_i    ( eth_rvalid       ),
+        .mem_rdata_i     ( eth_mem_rsp.data ),
+        .mem_err_i       ( eth_mem_rsp.err  ),
+        .mem_exokay_i    ('0), // drive to zero because mem_lock_o is not used
+        .mem_cheri_tag_i ('0) // not using Cheri stuff
     );
-    // TODO eth_mem_rsp.err is ignored by the AXI adapter, fix that by using axi_to_detailed_mem instead
 
     //////////////////////////////
     // Instantiate ethernet_top //
