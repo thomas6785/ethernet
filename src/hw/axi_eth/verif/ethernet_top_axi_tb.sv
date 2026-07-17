@@ -22,6 +22,8 @@ See README.md for details.
 
 */
 
+`include "axi/typedef.svh"
+
 module ethernet_top_axi_tb (
     input logic clk_125M_i,
     input logic clk_125M_quad_i,
