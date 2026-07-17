@@ -16,7 +16,7 @@ from models import AxiEthernetDutWithMirror,AxiEthernetWrapper
 
 # Seed for the PRNG
 # Reseeded before each test so tests are repeatable without rerunning the whole test suite (assuming perfeclty restored state between tests)
-GLOBAL_SEED = 1784024865#random.randint(0,2**32-1)
+GLOBAL_SEED = random.randint(0,2**32-1)
 logging.info(f"GLOBAL_SEED={GLOBAL_SEED}") # TODO change logger
 random.seed(GLOBAL_SEED)
 
