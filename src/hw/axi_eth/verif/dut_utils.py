@@ -22,11 +22,11 @@ async def reinitialise_dut_state(dut_wrapped):
     but not by this function (TX/RX pointers). This is deliberate as a way of
     randomising test conditions.
     """
-    while dut_wrapped.tx_busy():
+    while await dut_wrapped.tx_busy():
         await Timer(8,"ns")
-    while dut_wrapped.rx_packet_pending():
+    while await dut_wrapped.rx_packet_pending():
         await dut_wrapped.rx_pop_packet()
-    processed = [
+    processes = [
         dut_wrapped.mode_set(0,0),
         dut_wrapped.mac_address_set([0,0,0,0,0,0]),
         dut_wrapped.intr_mask_set(0),
@@ -36,7 +36,7 @@ async def reinitialise_dut_state(dut_wrapped):
         dut_wrapped.clear_tx_done_flag(),
         dut_wrapped.clear_packet_lost_flag()
     ]
-    await Combine(*processed) # wait for all those transactions to complete
+    await Combine(*[cocotb.start_soon(i) for i in processes]) # wait for all those transactions to complete
     for _ in range(2):
         await RisingEdge(dut_wrapped.dut.clk_125M_i) # wait two clocks just in case
     return
@@ -84,12 +84,9 @@ async def health_test(dut):
     # Check the data
     _, ptr, length = await dut.rx_buffer_metadata_get(n_packets_buffered-1) # get the packet we just sent
     assert length == 64, f"Failed health test: loopback packet length mismatch"
-    for i in range(64):
-        word_index = (ptr+i)//8
-        word = await dut.rx_buffer_read64(word_index)
-        byte = word[(ptr+i)%8]
-        expected_byte = 0 if i%8 != 0 else i//8
-        assert byte == expected_byte, f"Failed health test: loopback packet data mismatch at byte {i}: expected {expected_byte}, got {byte}"
+    data = await dut.read_packet(n_packets_buffered-1)
+    exp_data = [i//8 if i%8==0 else 0 for i in range(64)]
+    assert data == exp_data, f"Failed health test: loopback packet data mismatch"
 
     # Try writing the MAC address
     await dut.mac_address_set([0xCA,0xFE,0xBE,0xEF,0xBA,0xDD])

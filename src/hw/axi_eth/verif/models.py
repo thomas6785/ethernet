@@ -431,7 +431,7 @@ class AxiEthernetWrapper():
         return [int(data[i]) for i in range(8)]
 
     async def read_packet(self, idx):
-        reason, ptr, length = await self.rx_buffer_metadata_get(idx)
+        _, ptr, length = await self.rx_buffer_metadata_get(idx)
 
         # this is a bit tricky - we want to queue up reads to all the bytes in the packet back-to-back, reading full words at a time
         lowest_word_idx = ptr // 8
