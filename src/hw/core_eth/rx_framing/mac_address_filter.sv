@@ -50,6 +50,9 @@ module mac_address_filter (
 
     logic [2:0] n_mac_bytes_checked; // count of how many bytes of the MAC address have been checked
 
+    logic packet_over;
+    assign packet_over = rx_axis_i.valid && rx_axis_i.last;
+
     logic could_be_broadcast_next, could_be_broadcast_q;
     logic could_be_mac_match_next, could_be_mac_match_q;
     logic could_be_multicast_next, could_be_multicast_q;
@@ -70,21 +73,27 @@ module mac_address_filter (
 
     always_ff @ (posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) could_be_broadcast_q <= 1'b1;
-        else if (rx_axis_i.valid && n_mac_bytes_checked < 6) begin
+        else if (rx_axis_i.valid && rx_axis_i.last) begin
+            could_be_broadcast_q <= 1'b1; // reset for a new packet
+        end else if (rx_axis_i.valid && n_mac_bytes_checked < 6) begin
             could_be_broadcast_q <= could_be_broadcast_next;
         end
     end
 
     always_ff @ (posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) could_be_mac_match_q <= 1'b1;
-        else if (rx_axis_i.valid && n_mac_bytes_checked < 6) begin
+        else if (rx_axis_i.valid && rx_axis_i.last) begin
+            could_be_mac_match_q <= 1'b1; // reset for a new packet
+        end else if (rx_axis_i.valid && n_mac_bytes_checked < 6) begin
             could_be_mac_match_q <= could_be_mac_match_next;
         end
     end
 
     always_ff @ (posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) could_be_multicast_q <= 1'b1;
-        else if (rx_axis_i.valid && n_mac_bytes_checked < 3) begin
+        else if (rx_axis_i.valid && rx_axis_i.last) begin
+            could_be_multicast_q <= 1'b1; // reset for a new packet
+        end else if (rx_axis_i.valid && n_mac_bytes_checked < 3) begin
             could_be_multicast_q <= could_be_multicast_next;
         end
     end
