@@ -147,7 +147,7 @@ module ethernet_csr (
 
     // Register INTR_MASK
     always_ff @ (posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni)                                        intr_mask <= '1; // enable all interrupts after reset
+        if (!rst_ni)                                        intr_mask <= '0; // disable all interrupts after reset
         else if (write && (reg_addr == REG_INTR_MASK_ADDR)) intr_mask <= mem_req_i.data[32+6:32];
     end
 

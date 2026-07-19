@@ -94,7 +94,7 @@ addrmap ethernet {
     /* INTR_MASK @ 0x0804 - same access pattern as cfg_f but all bits reset to 1.
      * Anonymous field declarations are used throughout this register. */
     reg {
-        desc = "Per-source interrupt enable mask. 1 = enabled, 0 = masked. Reset value: 0x7F (all enabled).";
+        desc = "Per-source interrupt enable mask. 1 = enabled, 0 = masked. Reset value: 0x0 (all disabled).";
 
         field { sw = rw; hw = r; reset = 1'b1; desc = "Mask bit for rx_not_empty."; }          rx_not_empty[0:0];
         field { sw = rw; hw = r; reset = 1'b1; desc = "Mask bit for rx_table_almost_full."; }  rx_table_almost_full[1:1];

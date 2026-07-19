@@ -109,7 +109,7 @@ class AxiEthernetModel():
         # should have entries of form (reason,bytearray) where bytearray is a list of ints between 0 and 255
         self.tx_buffer  = [0 for i in range(1522)] # max. 1522 bytes
 
-        self.intr_mask = 127 # all interrupts enabled by default
+        self.intr_mask = 0 # all interrupts disabled by default
         self.manual_irq = False
         self.tx_done_irq = False
         self.packet_lost = False
