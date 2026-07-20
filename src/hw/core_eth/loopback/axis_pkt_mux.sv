@@ -97,5 +97,7 @@ module axis_pkt_mux (
         .isolated_o(isolated[1])
     );
 
+    assign passthrough_o = !isolated[0] || !isolated[1]; // when either path is un-isolated, we are passing through the selected input stream
+
     `ASSERT(NeverMixPaths_A, !isolated[0] && !isolated[1]) // we should NEVER have both paths un-isolated at the same time, otherwise we could see a packet splice
 endmodule

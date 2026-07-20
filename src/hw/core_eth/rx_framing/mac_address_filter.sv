@@ -50,9 +50,6 @@ module mac_address_filter (
 
     logic [2:0] n_mac_bytes_checked; // count of how many bytes of the MAC address have been checked
 
-    logic packet_over;
-    assign packet_over = rx_axis_i.valid && rx_axis_i.last;
-
     logic could_be_broadcast_next, could_be_broadcast_q;
     logic could_be_mac_match_next, could_be_mac_match_q;
     logic could_be_multicast_next, could_be_multicast_q;
@@ -102,4 +99,7 @@ module mac_address_filter (
                               could_be_multicast_q ? ethernet_pkg::MAC_MULTICAST :
                               could_be_broadcast_q ? ethernet_pkg::MAC_BROADCAST :
                               ethernet_pkg::NON_MAC_MATCH;
+
+    logic unused;
+    assign unused = rx_axis_i.user; // suppress unused signal warning
 endmodule

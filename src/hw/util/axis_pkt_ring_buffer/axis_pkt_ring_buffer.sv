@@ -66,7 +66,6 @@ axis_pkt_ring_buffer #(
     .pkt_tdata_i            (),
     .pkt_tvalid_i           (),
     .pkt_tlast_i            (),
-    .pkt_tready_o           (),
 
     .pkt_metadata_i         (),
     .pkt_abandon_i          (),
@@ -127,7 +126,6 @@ module axis_pkt_ring_buffer #(
     input  pkt_data_t                   pkt_tdata_i,        // Incoming data (AXI-Stream)
     input  logic                        pkt_tlast_i,        // Indicates the end of a packet. Metadata will be captured and a new entry added to the descriptor table, UNLESS pkt_abandon_i was asserted any time during this packet (but not on the same cycle as tlast).
     input  logic                        pkt_tvalid_i,       // indicate whether any of the above signals are valid
-    output logic                        pkt_tready_o,       // indicates ready to receive new data
 
     input  metadata_t                   pkt_metadata_i,     // Captured when a packet is committed
     input  logic                        pkt_abandon_i,      // When asserted, the current packet is abandoned and will not be commited. Valid when pkt_tvalid_i is asserted.
@@ -185,7 +183,7 @@ module axis_pkt_ring_buffer #(
         table_full_o       // description table full when the packet ends (it's okay if it's full when the packet starts, there could be a pop in the middle of the packet)
     );
 
-    assign packet_lost_o = (buf_full && pkt_tvalid_i && ~abandon_sticky) || (table_full_o && pkt_tlast_i && pkt_tvalid_i);
+    assign packet_lost_o = ((buf_full && pkt_tvalid_i) || (table_full_o && pkt_tlast_i && pkt_tvalid_i)) && ~abandon_sticky;
     // if the buffer was full at any point, if the table is full at the end of the packet, that packet will be lost
     // This will PULSE FOR ONE CYCLE when the packet is lost i.e. losing a packet is an event
 
@@ -210,8 +208,6 @@ module axis_pkt_ring_buffer #(
     logic [BUF_ADDR_W-1:0] buffer_ptrs_margin;
     assign buffer_ptrs_margin           = (empty_o ? current_packet_head_ptr : oldest_packet_desc.head_ptr) - current_packet_head_ptr; // the number of words IN BETWEEN (exclusive) the read and write pointers on the buffer
     assign buf_almost_full_o            = !empty_o && (buffer_ptrs_margin <= BUF_ADDR_W'(BufAlmostFullThreshold));
-
-    assign pkt_tready_o                 = ~(buf_full || (table_full_o && pkt_tlast_i)); // stop acceptign data if the buffer is full, or if the table is full on the last cycle of a packet (it's okay if the table is full at the start of a packet, there could be a pop in the middle of the packet)
 
     logic buf_write;
     assign buf_write = pkt_tvalid_i && ~buf_full && ~abandon_this_packet;
@@ -295,6 +291,8 @@ module axis_pkt_ring_buffer #(
         .n_buffered_o(n_pkts_buffered_o), // number of packets currently buffered in the descriptor table
         .empty_o(empty_o)
     );
+    logic unused;
+    assign unused = ^{oldest_packet_desc.metadata,oldest_packet_desc.pkt_len}; // we only need the head_ptr of the oldest packet but the FIFO exposes all of it. Assigning to 'unused' waives lint warnings
 
     assign current_pkt_desc.metadata = pkt_metadata_i; // incoming metadata (only valid on tlast)
     assign current_pkt_desc.head_ptr = current_packet_head_ptr;
@@ -372,7 +370,6 @@ module axis_pkt_ring_buffer #(
 
     `ASSERT(NPktsDecreaseWithoutPop_A,      !table_pop_i |=> n_pkts_buffered_o >= $past(n_pkts_buffered_o)); // cannot decrease the number of packets buffered without popping an entry from the descriptor table
     `ASSERT(NPktsIncreaseWithoutLast_A,     !pkt_tlast_i |=> n_pkts_buffered_o <= $past(n_pkts_buffered_o)); // cannot increase the number of packets buffered without finishing a packet
-    `ASSERT(ReadyWhenNotFull_A,             !buf_full && !table_full_o |-> pkt_tready_o); // ready to accept new data when the buffer and table are not full
 
     // values during reset
     `ASSERT(EmptyDuringReset_A,                 !rst_ni |-> empty_o,                     clk_i, 0);

@@ -65,9 +65,9 @@ genvar n;
 
 generate
 
-if (TARGET == "XILINX") begin
-    for (n = 0; n < WIDTH; n = n + 1) begin : oddr
-        if (IODDR_STYLE == "IODDR") begin
+if (TARGET == "XILINX") begin : gen_xilinx_target
+    for (n = 0; n < WIDTH; n = n + 1) begin : gen_oddr
+        if (IODDR_STYLE == "IODDR") begin : gen_ioddr
             ODDR #(
                 .DDR_CLK_EDGE("SAME_EDGE"),
                 .SRTYPE("ASYNC")
@@ -81,7 +81,7 @@ if (TARGET == "XILINX") begin
                 .R(1'b0),
                 .S(1'b0)
             );
-        end else if (IODDR_STYLE == "IODDR2") begin
+        end else if (IODDR_STYLE == "IODDR2") begin : gen_ioddr2
             ODDR2 #(
                 .DDR_ALIGNMENT("C0"),
                 .SRTYPE("ASYNC")
@@ -98,7 +98,7 @@ if (TARGET == "XILINX") begin
             );
         end
     end
-end else if (TARGET == "ALTERA") begin
+end else if (TARGET == "ALTERA") begin : gen_altera_target
     altddio_out #(
         .WIDTH(WIDTH),
         .POWER_UP_HIGH("OFF"),
@@ -113,14 +113,11 @@ end else if (TARGET == "ALTERA") begin
         .aclr(1'b0),
         .dataout(q)
     );
-end else begin
-    reg [WIDTH-1:0] d_reg_1 = {WIDTH{1'b0}};
-    reg [WIDTH-1:0] d_reg_2 = {WIDTH{1'b0}};
-
-    reg [WIDTH-1:0] q_reg = {WIDTH{1'b0}};
+end else begin : gen_generic_target
+    reg [WIDTH-1:0] d_reg_2;
+    reg [WIDTH-1:0] q_reg;
 
     always @(posedge clk) begin
-        d_reg_1 <= d1;
         d_reg_2 <= d2;
     end
 

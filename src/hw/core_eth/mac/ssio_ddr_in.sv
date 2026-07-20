@@ -59,11 +59,11 @@ wire clk_io;
 
 generate
 
-if (TARGET == "XILINX") begin
+if (TARGET == "XILINX") begin : gen_xilinx_ssio_ddr_in
 
     // use Xilinx clocking primitives
 
-    if (CLOCK_INPUT_STYLE == "BUFG") begin
+    if (CLOCK_INPUT_STYLE == "BUFG") begin : gen_bufg_noio
 
         // buffer RX clock
         BUFG
@@ -76,7 +76,7 @@ if (TARGET == "XILINX") begin
         assign clk_io = clk_int;
         assign output_clk = clk_int;
 
-    end else if (CLOCK_INPUT_STYLE == "BUFR") begin
+    end else if (CLOCK_INPUT_STYLE == "BUFR") begin : gen_bufio_bufr
 
         assign clk_int = input_clk;
 
@@ -98,7 +98,7 @@ if (TARGET == "XILINX") begin
             .CLR(1'b0)
         );
 
-    end else if (CLOCK_INPUT_STYLE == "BUFIO") begin
+    end else if (CLOCK_INPUT_STYLE == "BUFIO") begin : gen_bufio_bufg
 
         assign clk_int = input_clk;
 
@@ -116,7 +116,7 @@ if (TARGET == "XILINX") begin
             .O(output_clk)
         );
 
-    end else if (CLOCK_INPUT_STYLE == "BUFIO2") begin
+    end else if (CLOCK_INPUT_STYLE == "BUFIO2") begin : gen_bufio2_bufg
 
         // pass through RX clock to input buffers
         BUFIO2 #(
@@ -141,7 +141,7 @@ if (TARGET == "XILINX") begin
 
     end
 
-end else begin
+end else begin : gen_generic_ssio_ddr_in
 
     // pass through RX clock to input buffers
     assign clk_io = input_clk;

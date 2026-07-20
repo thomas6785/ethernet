@@ -121,6 +121,8 @@ module ethernet_top_axi_tb (
     int tests_done = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    logic unused;
+    assign unused = ^{tests_done, tests_passed, tests_failed};
 
     localparam AxiDataWidth = 64;
     localparam AxiAddrWidth = 64;

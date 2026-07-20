@@ -45,6 +45,7 @@ There are no dedicated tests for this module.
       .device_we_o           (),
       .device_be_o           (),
       .device_wdata_o        (),
+      .device_gnt_i          (),
       .device_rdata_i        (),
       .device_err_i          (),
 
@@ -92,6 +93,7 @@ There are no dedicated tests for this module.
   output logic [   DataWidth-1:0] device_wdata_o  [NrDevices],
   input                           device_rvalid_i [NrDevices],
   input        [   DataWidth-1:0] device_rdata_i  [NrDevices],
+  input                           device_gnt_i    [NrDevices],
   input                           device_err_i    [NrDevices],
 
   // Device address map
@@ -101,6 +103,13 @@ There are no dedicated tests for this module.
 
   localparam int unsigned NumBitsHostSel = NrHosts > 1 ? $clog2(NrHosts) : 1;
   localparam int unsigned NumBitsDeviceSel = NrDevices > 1 ? $clog2(NrDevices) : 1;
+
+  // Wait states are currently not supported
+  for (genvar i = 0; i < NrDevices; i++) begin : gen_device_gnt_check
+    logic unused;
+    assign unused = device_gnt_i[i];
+    `ASSERT(BusNoWaitStates_A, ~device_req_o[i] | device_gnt_i[i]);
+  end
 
   logic host_sel_valid;
   logic device_sel_valid;

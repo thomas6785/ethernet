@@ -163,7 +163,7 @@ end
 reg [6:0] rx_speed_count_1;
 reg [1:0] rx_speed_count_2;
 
-always @(posedge gtx_clk) begin
+always @(posedge gtx_clk or posedge gtx_rst) begin
     if (gtx_rst) begin
         rx_speed_count_1 <= 0;
         rx_speed_count_2 <= 0;

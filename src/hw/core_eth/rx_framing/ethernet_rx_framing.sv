@@ -79,6 +79,8 @@ module ethernet_rx_framing (
         .mem_req_o(desc_table_mem_req_ro),
         .mem_rsp_i(desc_table_mem_rsp_ro)
     );
+    logic unused;
+    assign unused = ^{data_buf_mem_req_ro.data,data_buf_mem_req_ro.be,data_buf_mem_req_ro.we,desc_table_mem_req_ro.data,desc_table_mem_req_ro.be,desc_table_mem_req_ro.we};
 
     /////////////////////
     // Packet metadata //
@@ -93,7 +95,6 @@ module ethernet_rx_framing (
     //////////////////////////
     // Feed the ring buffer //
     //////////////////////////
-    logic rx_axis_ready; // backpressure to the input stream. This should never be asserted as the PHY cannot accept backpressure, so we will have to drop the packet.
     ethernet_pkg::pkt_metadata_t                    read_if_pkt_metadata;
     logic [ethernet_pkg::RX_DATA_BUF_ADDR_W-1:0]    read_if_pkt_buf_addr;
     ethernet_pkg::pkt_len_t                         read_if_pkt_len;
@@ -112,7 +113,6 @@ module ethernet_rx_framing (
         .pkt_tdata_i            (rx_axis_i.data                     ),
         .pkt_tvalid_i           (rx_axis_i.valid                    ),
         .pkt_tlast_i            (rx_axis_i.last                     ),
-        .pkt_tready_o           (rx_axis_ready                      ),
 
         .pkt_metadata_i         (current_pkt_metadata               ),
         .pkt_abandon_i          (abandon_packet                     ),

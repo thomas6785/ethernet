@@ -89,7 +89,7 @@ module rgmii_soc #
 wire [3:0] phy_rxd_delay;
 wire       phy_rx_ctl_delay;
 
-generate if (TARGET == "XILINX") begin
+generate if (TARGET == "XILINX") begin : gen_xilinx_target
     IDELAYCTRL
     idelayctrl_inst
     (
@@ -193,11 +193,15 @@ generate if (TARGET == "XILINX") begin
         .LDPIPEEN(1'b0),
         .REGRST(1'b0)
     );
-end else begin
+end else begin : gen_generic_target
+    logic unused;
+    assign unused = clk_200_int;
+
     // For simulation we can ignore the input delay and just pass signals through
     assign phy_rx_ctl_delay = phy_rx_ctl;
     assign phy_rxd_delay = phy_rxd;
-end endgenerate
+end
+endgenerate
 
 // Instantiate core
 rgmii_core #(

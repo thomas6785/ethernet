@@ -52,6 +52,9 @@ module mac_wrapper #(
     // AXI Stream output for RX (no backpressure)
     output ethernet_pkg::axis_t             rx_axis_o
 );
+    logic unused;
+    assign unused = ^mac_config_i; // currently unused
+
     /////////////////////////
     // Instantiate the MAC //
     /////////////////////////

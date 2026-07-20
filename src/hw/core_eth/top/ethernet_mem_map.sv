@@ -64,7 +64,6 @@ module ethernet_mem_map (
 
     logic reqs [0:3];
     logic rvalids [0:3];
-    logic host_rvalid;
 
     always_ff @ (posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) rvalids <= '{default: '0};
@@ -74,12 +73,14 @@ module ethernet_mem_map (
     logic [ADDR_W-1:0]          addrs  [0:3];
     logic                       wes    [0:3];
     logic                       errs   [0:3];
+    logic                       gnts   [0:3];
     logic [DATA_W_BYTES-1:0]    bes    [0:3];
     logic [DATA_W-1:0]          wdatas [0:3];
     logic [DATA_W-1:0]          rdatas [0:3];
 
     assign rdatas = {  reg_mem_rsp_i.data       ,   tx_data_mem_rsp_i.data   ,   rx_data_mem_rsp_i.data   ,   rx_meta_mem_rsp_i.data       };
     assign errs   = {  reg_mem_rsp_i.err        ,   tx_data_mem_rsp_i.err    ,   rx_data_mem_rsp_i.err    ,   rx_meta_mem_rsp_i.err        };
+    assign gnts   = {  reg_mem_rsp_i.gnt        ,   tx_data_mem_rsp_i.gnt    ,   rx_data_mem_rsp_i.gnt    ,   rx_meta_mem_rsp_i.gnt        };
 
     assign reg_mem_req_o.req                = reqs[0];
     assign tx_data_mem_req_o.req            = reqs[1];
@@ -107,11 +108,9 @@ module ethernet_mem_map (
     assign rx_meta_mem_req_o.data           = wdatas[3];
 
     // these have to be an unpacked types or SystemVerilog will be upset
-    logic               main_rvalid [1];
     logic               main_gnt [1];
     logic [DATA_W-1:0]  main_rdata [1];
     logic               main_err [1];
-    assign host_rvalid          = main_rvalid[0];
     assign main_mem_rsp_o.gnt   = main_gnt[0];
     assign main_mem_rsp_o.data  = main_rdata[0];
     assign main_mem_rsp_o.err   = main_err[0];
@@ -132,7 +131,7 @@ module ethernet_mem_map (
         .host_we_i             ({main_mem_req_i.we}),
         .host_be_i             ({main_mem_req_i.be}),
         .host_wdata_i          ({main_mem_req_i.data}),
-        .host_rvalid_o         (main_rvalid), // I'm not using these on my memory interface, but I am using it to assert when read data is known
+        .host_rvalid_o         (), // not used by my interface, it assumes we are valid the cycle after req&gnt
         .host_gnt_o            (main_gnt),
         .host_rdata_o          (main_rdata),
         .host_err_o            (main_err),
@@ -141,6 +140,7 @@ module ethernet_mem_map (
         .device_addr_o         (addrs),
         .device_we_o           (wes),
         .device_be_o           (bes),
+        .device_gnt_i          (gnts),
         .device_wdata_o        (wdatas),
         .device_rdata_i        (rdatas),
         .device_err_i          (errs),

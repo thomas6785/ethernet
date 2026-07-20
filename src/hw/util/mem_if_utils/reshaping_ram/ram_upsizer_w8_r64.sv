@@ -101,6 +101,9 @@ module ram_upsizer_w8_r64 #(
         .dbiterrb        ()         // douible bit error detected
     );
 `else
+    logic unused;
+    assign unused = ^MEM_SIZE;
+
     (* ram_style = "block" *) // hint for Vivado to infer block RAM
     logic [7:0] mem [(1<<WR_ADDR_W)-1:0];
 

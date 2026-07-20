@@ -93,14 +93,11 @@ module eth_mac_1g_rgmii_wrapper #
     input wire [7:0]   ifg_delay
 );
 
-wire tx_clk;
 wire rx_clk;
-wire tx_rst;
 wire rx_rst;
 
 // synchronize MAC status signals into logic clock domain
 wire rx_error_bad_frame_int;
-wire rx_error_bad_fcs_int;
 
 reg [1:0] rx_sync_reg_1;
 reg [1:0] rx_sync_reg_2;
@@ -155,8 +152,8 @@ eth_mac_1g_rgmii_inst (
     .gtx_clk(gtx_clk),
     .gtx_clk90(gtx_clk90),
     .gtx_rst(gtx_rst),
-    .tx_clk(tx_clk),
-    .tx_rst(tx_rst),
+    .tx_clk(),
+    .tx_rst(),
     .rx_clk(rx_clk),
     .rx_rst(rx_rst),
 
@@ -179,7 +176,7 @@ eth_mac_1g_rgmii_inst (
     .rgmii_tx_ctl(rgmii_tx_ctl),
     .mac_gmii_tx_en(mac_gmii_tx_en),
     .rx_error_bad_frame(rx_error_bad_frame_int),
-    .rx_error_bad_fcs(rx_error_bad_fcs_int),
+    .rx_error_bad_fcs(),
     .rx_fcs_reg(rx_fcs_reg),
     .tx_fcs_reg(tx_fcs_reg),
     .speed(speed_int),

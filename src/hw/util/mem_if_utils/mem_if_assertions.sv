@@ -36,11 +36,14 @@ mem_if_assertions u_mem_if_assertions (
 `include "prim_assert.sv"
 
 module mem_if_assertions (
-    input                               clk_i,
-    input                               rst_ni,
+    input                               clk_i,  // This signal may look unused, but the `ASSERT macro has clk_i and rst_ni as defaults hardcoded
+    input                               rst_ni, // This signal may look unused, but the `ASSERT macro has clk_i and rst_ni as defaults hardcoded
     input  mem_if_utils_pkg::mem_req_t  mem_req_i,
     input  mem_if_utils_pkg::mem_rsp_t  mem_rsp_o
 );
+    logic unused;
+    assign unused = ^{clk_i,rst_ni,mem_req_i,mem_rsp_o}; // if `ASSERT is not used, these signals go nowhere after pre-processing, so we need to mark them as unused to avoid lint warnings
+
     // Once asserted, req should stay asserted until the handshake is complete
     `ASSERT(MemIfReqValidStaysUntilRsp_A, mem_req_i.req && !mem_rsp_o.gnt |=> mem_req_i.req);
 

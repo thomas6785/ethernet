@@ -50,6 +50,9 @@ module mem_to_wo_mem #(
     output mem_if_utils_pkg::mem_req_t   mem_req_o,
     input  mem_if_utils_pkg::mem_rsp_t   mem_rsp_i
 );
+    logic unused;
+    assign unused = ^{mem_rsp_i.data};
+
     // For write requests, forward them to the output
     assign mem_req_o.req  = mem_req_i.req && mem_req_i.we; // only forward write requests, block read requests
     assign mem_req_o.we   = mem_req_i.we;

@@ -68,6 +68,7 @@ module ethernet_tx_framing (
     // TODO block writes if a TX is in progress and the address hasn't been tx'd yet (but allow addresses that are already TX'd to allow efficient streaming of packets)
     // this would be very useful for preparing the next packet while the previous one is completing
     assign tx_buffer_wr_rsp.err = 1'b0; // TODO also detect writes our of bounds
+    assign tx_buffer_wr_rsp.data = 64'hBADDF00DBADDF00D; // this data should never get used as this is a write-only memory
 
     /////////////////////////////////
     // Instantiate the data buffer //
@@ -79,7 +80,7 @@ module ethernet_tx_framing (
         .clk_i,
         .rst_ni,
         // Writes from the master
-        .wr_en_i    (tx_buffer_wr_req.req),
+        .wr_en_i    (tx_buffer_wr_req.req && tx_buffer_wr_req.we && &(tx_buffer_wr_req.be)),
         .wr_addr_i  (tx_buffer_wr_req.addr[ethernet_pkg::TX_DATA_BUF_ADDR_W-1:ethernet_pkg::TX_DATA_BUF_ADDR_LSBS]), // convert from byte address to word address
         .wr_data_i  (tx_buffer_wr_req.data),
 

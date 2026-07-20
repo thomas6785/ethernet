@@ -204,7 +204,7 @@ reg [DATA_WIDTH-1:0] output_mask_data[DATA_WIDTH-1:0];
 reg [LFSR_WIDTH-1:0] state_val;
 reg [DATA_WIDTH-1:0] data_val;
 
-integer i, j, k;
+integer i, j;
 
 initial begin
     // init bit masks
@@ -364,7 +364,7 @@ genvar n;
 
 generate
 
-if (STYLE_INT == "REDUCTION") begin
+if (STYLE_INT == "REDUCTION") begin : gen_reduction_style
 
     // use Verilog reduction operator
     // fast in iverilog
@@ -372,14 +372,14 @@ if (STYLE_INT == "REDUCTION") begin
     // slightly smaller than generated code with Quartus
     // --> better for simulation
 
-    for (n = 0; n < LFSR_WIDTH; n = n + 1) begin : loop1
+    for (n = 0; n < LFSR_WIDTH; n = n + 1) begin : gen_loop1
         assign state_out[n] = ^{(state_in & lfsr_mask_state[n]), (data_in & lfsr_mask_data[n])};
     end
-    for (n = 0; n < DATA_WIDTH; n = n + 1) begin : loop2
+    for (n = 0; n < DATA_WIDTH; n = n + 1) begin : gen_loop2
         assign data_out[n] = ^{(state_in & output_mask_state[n]), (data_in & output_mask_data[n])};
     end
 
-end else if (STYLE_INT == "LOOP") begin
+end else if (STYLE_INT == "LOOP") begin : gen_loop_style
 
     // use nested loops
     // very slow in iverilog
@@ -422,7 +422,7 @@ end else if (STYLE_INT == "LOOP") begin
         end
     end
 
-end else begin
+end else begin : gen_unknown_style
 
     initial begin
         $error("Error: unknown style setting!");

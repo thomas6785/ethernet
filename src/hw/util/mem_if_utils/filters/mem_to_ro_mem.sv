@@ -50,6 +50,9 @@ module mem_to_ro_mem #(
     output mem_if_utils_pkg::mem_req_t   mem_req_o,
     input  mem_if_utils_pkg::mem_rsp_t   mem_rsp_i
 );
+    logic unused;
+    assign unused = ^{mem_req_i.data,mem_req_i.be};
+
     assign mem_req_o.we   = 1'b0; // block all writes
     assign mem_req_o.data = '0;   // wdata is irrelevant for a read-only memory interface
     assign mem_req_o.be   = '0;   // wstrb is irrelevant for a read-only memory interface

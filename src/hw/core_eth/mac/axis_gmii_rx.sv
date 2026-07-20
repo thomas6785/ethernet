@@ -72,7 +72,6 @@ module axis_gmii_rx
 );
 
 localparam [7:0]
-    ETH_PRE = 8'h55,
     ETH_SFD = 8'hD5;
 
 localparam [2:0]
@@ -246,7 +245,7 @@ always @* begin
     end
 end
 
-always @(posedge clk) begin // TODO switch to asynchronous reset here, but it breaks synthesis because of the bad design pattern used here
+always @(posedge clk or posedge rst) begin
     if (rst) begin
         state_reg <= STATE_IDLE;
 
@@ -313,7 +312,9 @@ always @(posedge clk) begin // TODO switch to asynchronous reset here, but it br
             end
         end
     end
+end
 
+always @ (posedge clk) begin // TODO add resets to these nets
     m_axis_tdata_reg <= m_axis_tdata_next;
     m_axis_tlast_reg <= m_axis_tlast_next;
     m_axis_tuser_reg <= m_axis_tuser_next;
