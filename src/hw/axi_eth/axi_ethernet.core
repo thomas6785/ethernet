@@ -1,0 +1,26 @@
+CAPI=2:
+
+# This is a FuseSoC .core file
+# https://fusesoc.readthedocs.io/_/downloads/en/stable/pdf/
+
+name: "lowrisc:ethernet:axi_top"
+description: "Ethernet MAC and framing top with internal TX/RX buffers and an AXI4 interface"
+
+filesets:
+    sim_only:
+        depend:
+            - lowrisc:prim_generic:all
+
+    rtl:
+        files:
+            - ethernet_top_axi.sv
+        file_type: systemVerilogSource
+        depend:
+            - lowrisc:ethernet:top
+            - pulp-platform.org::axi:0.39.9
+            # this core is originally part of Pulp but was modified by lowRISC to use lowRISC primitives. Behaviour should be the same. The fusesoc.conf file attached to this repo points to the lowRISC version.
+
+targets:
+    default: &default_target
+        filesets:
+            - rtl
