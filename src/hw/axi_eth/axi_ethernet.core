@@ -20,7 +20,40 @@ filesets:
             - pulp-platform.org::axi:0.39.9
             # this core is originally part of Pulp but was modified by lowRISC to use lowRISC primitives. Behaviour should be the same. The fusesoc.conf file attached to this repo points to the lowRISC version.
 
+    cocotb:
+        files:
+            - verif/ethernet_top_axi_tb.sv:             {file_type : systemVerilogSource}
+            - verif/coco_top.py:                        {file_type : user , copyto: .}
+            - verif/dut_utils.py:                       {file_type : user , copyto: .}
+            - verif/test_utils.py:                      {file_type : user , copyto: .}
+            - verif/models.py:                          {file_type : user , copyto: .}
+
 targets:
     default: &default_target
         filesets:
             - rtl
+
+    sim:
+        <<: *default_target
+        flow: sim
+        flow_options:
+            tool: verilator
+            cocotb_module: coco_top
+
+            verilator_options: # arguments to BUILD Verilator with
+                - "--timing"
+                - "-Wno-fatal"      # don't exit on warnings TODO remove this once warnings are fixed
+                - "--trace"         # enable tracing
+                - "--trace-fst"     # trace to an FST file (instead of VCD)
+                - "--trace-structs" # trace structs (e.g. packed structs) properly
+
+            run_options: # arguments to RUN Verilator with
+                - "--trace"         # enable tracing
+                - "--trace-fst"     # trace to an FST file (instead of VCD)
+                - "--trace-structs" # trace structs (e.g. packed structs) properly
+
+            timescale: 1ns/1ns
+        filesets_append:
+            - sim_only
+            - cocotb
+        toplevel: ethernet_top_axi_tb
