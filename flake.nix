@@ -1,0 +1,129 @@
+# Copyright lowRISC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+{
+  description = "AXI device to interface with Ethernet.";
+  inputs = {
+    lowrisc-nix.url = "github:lowRISC/lowrisc-nix";
+
+    nixpkgs.follows = "lowrisc-nix/nixpkgs";
+    flake-utils.follows = "lowrisc-nix/flake-utils";
+    uv2nix = {
+      url = "github:pyproject-nix/uv2nix";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    pyproject-nix = {
+      url = "github:pyproject-nix/pyproject.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    pyproject-build-systems = {
+      url = "github:pyproject-nix/build-system-pkgs";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.uv2nix.follows = "uv2nix";
+    };
+    ftditool = {
+      url = "github:lowRISC/ftditool?ref=v0.4.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  nixConfig = {
+    extra-substituters = ["https://nix-cache.lowrisc.org/public/"];
+    extra-trusted-public-keys = ["nix-cache.lowrisc.org-public-1:O6JLD0yXzaJDPiQW1meVu32JIDViuaPtGDfjlOopU7o="];
+  };
+
+  outputs = {
+    nixpkgs,
+    flake-utils,
+    lowrisc-nix,
+    ...
+  } @ inputs: let
+    system_outputs = system: let
+      pkgs = import nixpkgs {inherit system;};
+      lrPkgs = lowrisc-nix.outputs.packages.${system};
+
+      workspace = inputs.uv2nix.lib.workspace.loadWorkspace {workspaceRoot = ./.;};
+      overlay = workspace.mkPyprojectOverlay {
+        sourcePreference = "wheel";
+      };
+
+      pythonSet =
+        (pkgs.callPackage inputs.pyproject-nix.build.packages {
+          python = pkgs.python312;
+        }).overrideScope
+        (
+          pkgs.lib.composeManyExtensions [
+            inputs.pyproject-build-systems.overlays.default
+            overlay
+            (lowrisc-nix.lib.pyprojectOverrides {inherit pkgs;})
+          ]
+        );
+
+      pythonEnv = pythonSet.mkVirtualEnv "python-env" workspace.deps.default;
+
+      fpga = import nix/fpga.nix {
+        inherit
+          pkgs
+          pythonEnv
+          ;
+        llvm = lrPkgs.llvm_cheri;
+      };
+      ftditool-cli = inputs.ftditool.packages.${system}.default;
+
+      commonPackages = with pkgs; [
+        bison
+        cmake
+        flex
+        gnumake
+        screen
+        picocom
+        gtkwave
+        openfpgaloader
+        ftditool-cli
+        openocd
+        uv
+        pythonEnv
+        verible
+        srecord
+        d2
+        dtc
+      ];
+    in {
+      formatter = pkgs.alejandra;
+      devShells = rec {
+        default = cheri;
+        cheri = pkgs.mkShell {
+          name = "mocha-cheri";
+          nativeBuildInputs =
+            commonPackages
+            ++ (with lrPkgs; [
+              llvm_cheri
+              verilator_5_040
+            ]);
+          buildInputs = with pkgs; [libelf zlib];
+          env = {
+            # Prevent uv from managing Python downloads
+            UV_PYTHON_DOWNLOADS = "never";
+            # Force uv to use nixpkgs Python interpreter
+            UV_PYTHON = pythonSet.python.interpreter;
+          };
+        };
+      };
+
+      apps = {
+        bitstream-build = flake-utils.lib.mkApp {
+          drv = fpga.bitstream-build;
+        };
+        bitstream-hash = flake-utils.lib.mkApp {
+          drv = fpga.bitstream-hash;
+        };
+        bitstream-load = flake-utils.lib.mkApp {
+          drv = fpga.bitstream-load;
+        };
+      };
+    };
+  in
+    flake-utils.lib.eachDefaultSystem system_outputs;
+}
