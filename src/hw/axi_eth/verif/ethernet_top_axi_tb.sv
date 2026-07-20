@@ -111,6 +111,12 @@ module ethernet_top_axi_tb (
         end
     end
 
+    // Set up coverage collection for the CSR block
+    bind ethernet_csr ethernet_csr_cov ethernet_csr_cg_inst();
+
+    // Set up coverage collection for the ring buffer
+    bind axis_pkt_ring_buffer axis_pkt_ring_buffer_cov axis_pkt_ring_buffer_cg_inst();
+
     // These don't do anything but they make it a whole lot easier to read the waveforms
     int tests_done = 0;
     int tests_passed = 0;

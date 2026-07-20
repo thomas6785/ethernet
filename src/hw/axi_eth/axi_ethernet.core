@@ -23,6 +23,8 @@ filesets:
     cocotb:
         files:
             - verif/ethernet_top_axi_tb.sv:             {file_type : systemVerilogSource}
+            - cov/ethernet_csr_cov.sv:                  {file_type : systemVerilogSource} # TODO separate file list for coverage things. Also move this file to be adjacent to its target
+            - cov/axis_pkt_ring_buffer_cov.sv:          {file_type : systemVerilogSource} # TODO separate file list for coverage things. Also move this file to be adjacent to its target
             - verif/coco_top.py:                        {file_type : user , copyto: .}
             - verif/dut_utils.py:                       {file_type : user , copyto: .}
             - verif/test_utils.py:                      {file_type : user , copyto: .}
@@ -46,6 +48,16 @@ targets:
                 - "--trace"         # enable tracing
                 - "--trace-fst"     # trace to an FST file (instead of VCD)
                 - "--trace-structs" # trace structs (e.g. packed structs) properly
+
+                # Toggle coverage (optional)
+                - tcov ? ("--coverage-toggle")  # tracks toggle coverage
+
+                # FSM coverage (optional)
+                - fcov ? ("--coverage-fsm")     # tracks FSMs coverage
+
+                # Properties and cover groups (optional)
+                - pcov ? ("--coverage-user")    # tracks coverage of properties
+                - pcov ? ("-DCOVERAGE")         # define `COVERAGE
 
             run_options: # arguments to RUN Verilator with
                 - "--trace"         # enable tracing
