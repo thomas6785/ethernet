@@ -13,6 +13,7 @@ filesets:
   files_rtl:
     depend:
       - lowrisc:prim_generic:flop_2sync
+      - lowrisc:prim:fifo
     files:
       - axis_gmii_rx.sv
       - axis_gmii_tx.sv
