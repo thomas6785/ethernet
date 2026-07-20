@@ -11,6 +11,15 @@ filesets:
         depend:
             - lowrisc:prim_generic:all
 
+    synth_only:
+        files:
+            - synth/axi_ethernet.xdc: {file_type: xdc}
+            - synth/axi_ethernet.tcl: {file_type: tclSource}
+            - synth/ethernet_top_axi_synth.sv: {file_type: systemVerilogSource} # top-level for trial synthesis. Thin wrapper. Not necessary for using the design in your own SoC
+        depend:
+            - lowrisc:prim_xilinx:all
+        # including this will cause any virtual cores to point to their corresponding XILINX concrete cores (as opposed to generic primitives)
+
     rtl:
         files:
             - ethernet_top_axi.sv
@@ -69,3 +78,13 @@ targets:
             - sim_only
             - cocotb
         toplevel: ethernet_top_axi_tb
+
+    trial_synth:
+        <<: *default_target
+        default_tool: vivado
+        toplevel: ethernet_top_axi_synth
+        filesets_append:
+            - synth_only
+        tools:
+            vivado:
+                part: xc7k325tffg900-2
