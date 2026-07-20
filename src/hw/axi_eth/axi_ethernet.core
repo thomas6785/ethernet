@@ -39,6 +39,10 @@ filesets:
             - verif/test_utils.py:                      {file_type : user , copyto: .}
             - verif/models.py:                          {file_type : user , copyto: .}
 
+    lint_waivers:
+        files:
+            - axi_ethernet.vlt:     { file_type: vlt }
+
 targets:
     default: &default_target
         filesets:
@@ -88,3 +92,18 @@ targets:
         tools:
             vivado:
                 part: xc7k325tffg900-2
+
+    lint:
+        <<: *default_target
+        default_tool: verilator
+        filesets_append:
+            - sim_only
+            - lint_waivers
+            - cocotb # TODO we only need the top-level not the Python files...
+        toplevel: ethernet_top_axi_tb
+        tools:
+            verilator:
+                mode: lint-only
+                verilator_options:
+                    - "-Wall"
+                    - "--timing"
