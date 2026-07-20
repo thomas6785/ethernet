@@ -2,7 +2,7 @@ import random
 import cocotb
 from cocotb.utils import get_sim_time
 from cocotb.clock import Clock
-from cocotb.triggers import Timer,RisingEdge
+from cocotb.triggers import Timer,with_timeout
 from functools import wraps
 
 import logging
@@ -17,7 +17,7 @@ from models import AxiEthernetDutWithMirror,AxiEthernetWrapper
 # Seed for the PRNG
 # Reseeded before each test so tests are repeatable without rerunning the whole test suite (assuming perfeclty restored state between tests)
 GLOBAL_SEED = random.randint(0,2**32-1)
-logging.info(f"GLOBAL_SEED={GLOBAL_SEED}") # TODO change logger
+print(f"GLOBAL_SEED={GLOBAL_SEED}") # TODO change logger
 random.seed(GLOBAL_SEED)
 
 ##################
@@ -47,6 +47,7 @@ class TestConfiguration:
     # Each test should be responsible for re-initialising the DUT
     # We may choose to reset using the reset pin, or re-initialise by draining the TX and RX buffers and overwriting all registers
     # Re-initialising is slower than resetting, but it is more realistic and may catch more bugs
+    # Reinitialising makes reproducibility a bit more difficult - you can still re-run the whole suite but re-running a single test will not be perfectly reproducible
     between_tests = "REINITIALISE"
     # "RESET":              Reset the DUT between tests with the reset signal
     # "REINITIALISE":       Do not reset the DUT between tests, but pop any packets and let TX drain.
@@ -60,7 +61,7 @@ class TestConfiguration:
     # Only run tests that match this callable
     tag_matcher = lambda x:True
     #tag_matcher = lambda tags:Tags.SOLO in tags
-    #tag_matcher = lambda tags:max(tags) <= Tags.EDGE
+    #tag_matcher = lambda tags:min(tags) <= Tags.MAIN
 
     # Create a callable that takes a list of tags on a test and returns True if the test should be run, False otherwise
 
@@ -88,6 +89,7 @@ def create_test(
     mac_addr = None,                        # initial configuration for the DUT
     prep_tx_buffer = False,                 # write random data to the TX buffer first
     order = 0,                              # relative ordering for this test. Overridden by the test runner if randomise_test_order is True
+    skip = False                            # skip this test
 ):
     is_micro = Tags.MICRO in tags
     is_smoke = Tags.SMOKE in tags
@@ -101,11 +103,16 @@ def create_test(
             return func
         else:
             # Define the test
-            @cocotb.test(stage=order if not TestConfiguration.randomise_test_order else random.randint(0,1000))
+            @cocotb.test(
+                stage=order if not TestConfiguration.randomise_test_order else random.randint(0,1000),
+                skip=skip
+            )
             @wraps(func)
             async def wrapped_function(dut):
                 # Seed the PRNG for this test
-                random.seed(GLOBAL_SEED) # TODO this means any pre-test randomisation will be identical for all tests, not ideal. Consider adding a hash of the test name or something
+                random.seed(GLOBAL_SEED+hash(func.__name__))
+                # add a hash of the test name to the random seed
+                # this is because a lot of tests share common startup code, so if we use the same seed that code will always generate the same data
 
                 # Start the clocks
                 cocotb.start_soon(custom_clock(
@@ -140,11 +147,12 @@ def create_test(
                     await dut_utils.prep_tx_buffer(dut_wrapped)
 
                 # Run the test
+                # TODO this function needs a bit of cleaning up
                 try:
-                    await func(dut_wrapped)
+                    await with_timeout(func(dut_wrapped),2000,"us")
                     # Run a health test if requested
                     if health_test_after or TestConfiguration.health_test_all:
-                        await dut_utils.health_test(dut_wrapped if not with_mirror else dut_wrapped.wrapper)
+                        await with_timeout(dut_utils.health_test(dut_wrapped if not with_mirror else dut_wrapped.wrapper),10,"us")
                     await Timer(100, 'ns')
 
                     dut_wrapped.dut.tests_passed.value = int(dut_wrapped.dut.tests_passed.value) + 1
@@ -155,8 +163,32 @@ def create_test(
                     dut_wrapped.dut.tests_done.value = int(dut_wrapped.dut.tests_done.value) + 1
             return wrapped_function
     return decorator
-
 # Wow what a piece of code that is
 # Not just a nested function but a *conditionally-defined doubly-nested function*
 # It's got coroutines, decorators, callbacks
 # At this point Python is just showing off!
+
+def randint(min,max):
+    # Return a random integer between min and max, inclusive
+    # but with a bias toward edge cases
+    # using randomness for this is not ideal, it would be better to have parametrised tests that explicitly hit all edge cases
+    # but cocotb makes parametrising tests a bit nasty so this will work for now as long as you run a lot of tests
+    # and inspect the coverage metrics to ensure that all edge cases are being hit
+    # Has a 15% probability of returning the min
+    # 5% probability of min+1
+    # 5% probability of max-1
+    # 15% probability of max
+    # 60% probability of a uniform random integer between min+2 and max-2
+    if max-min < 8:
+        return random.randint(min,max)
+    r = random.random()
+    if r < 0.15:
+        return min
+    elif r < 0.20:
+        return min+1
+    elif r < 0.80:
+        return random.randint(min+2,max-2)
+    elif r < 0.85:
+        return max-1
+    else:
+        return max

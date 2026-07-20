@@ -477,19 +477,24 @@ class AxiEthernetWrapper():
         return bool((await self.status_get()) & (1 << 7))
 
     async def wait_for_tx_done(self,tail_after_done=10):
-        # first wait for tx_busy to be asserted, then wait for it to be deasserted
-        # then an extra 10 cycles for the RX path to finish handling the packet
-        while not (await self.tx_busy()):
+        while int(self.dut.dut.ethernet_top_inst.tx_status.value) == 0: # make sure it has started
             await RisingEdge(self.dut.clk_125M_i)
-        while (await self.tx_busy()):
+        while int(self.dut.dut.ethernet_top_inst.tx_status.value) > 0: # wait for it to finish
             await RisingEdge(self.dut.clk_125M_i)
-        for _ in range(tail_after_done):
+        await RisingEdge(self.dut.clk_125M_i) # always wait at least one edge
+        for _ in range(max(0,tail_after_done-1)):
             await RisingEdge(self.dut.clk_125M_i)
 
     async def get_transmitted_packet(self):
         raw_data = list((await self._rgmii_phy.tx.recv()).data)
         data = raw_data[raw_data.index(0xd5)+1:-4] # strip preamble and SFD and FCS - the RGMII model includes them but our model doesn't
         return data
+
+    async def read_mdio_ctrl_reg(self):
+        return int.from_bytes((await self._axi_driver.read(csr.MDIO_CTRL, 4)).data, byteorder='little')
+
+    async def write_mdio_ctrl_reg(self, value):
+        return (await self._axi_driver.write(csr.MDIO_CTRL, value.to_bytes(4, byteorder='little')))
 
 class AxiEthernetDutWithMirror():
     def __init__(self, cocotb_dut):
@@ -612,20 +617,29 @@ class AxiEthernetDutWithMirror():
         self.model.tx_packet_send(len_bytes)
 
     async def wait_for_tx_done(self, tail_after_done=10):
-        await self.wrapper.wait_for_tx_done(tail_after_done)
+        await self.wrapper.wait_for_tx_done(tail_after_done=0) # when we are using the mirror, we want to update the model as soon as its done, THEN wait for the tail
         self.model.wait_for_tx_done()
+        for _ in range(tail_after_done):
+            await RisingEdge(self.dut.clk_125M_i)
 
     async def simulate_rx_packet(self, data):
-        await self.wrapper.simulate_rx_packet(data)
-        self.model.simulate_rx_packet(data)
+        await self.begin_rx_packet(data)
+        await self.wait_for_rx_done(tail_after_done=10)
 
     async def begin_rx_packet(self,data):
         await self.wrapper.begin_rx_packet(data)
         self.model.begin_rx_packet(data)
 
     async def wait_for_rx_done(self,tail_after_done=10):
-        await self.wrapper.wait_for_rx_done(tail_after_done)
+        await self.wrapper.wait_for_rx_done(tail_after_done=5)
+        # this function monitors the RGMII interface to know when RX is done
+        # I've set a tail_after_done of FOUR CYCLES because that's the propagation delay through the DUT
+        # however this is not ideal as it closely couples the model with a non-specific implementation detail
+        # it would be best if we had a more sophisticated testbench that let us say "the status of the model is unknown for 10 cycles" to allow for implementation-specific delay
+        # when we are using the mirror, we want to update the model as soon as its done, THEN wait for the tail
         self.model.wait_for_rx_done()
+        for _ in range(tail_after_done):
+            await RisingEdge(self.dut.clk_125M_i)
 
     async def irq_pending(self):
         dut_irq = await self.wrapper.irq_pending()
