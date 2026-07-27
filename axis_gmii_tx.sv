@@ -26,7 +26,7 @@ Author: Alex Forencich <alex@alexforencich.com>
 Date:   Thu Nov 8 13:15:47 2018 -0800
 
 Modified by Jonathan Kimmitt to extract CRC bytes
- 
+
 lfsr submodule renamed rgmii_lfsr to avoid name clash with main project
 */
 
@@ -83,11 +83,12 @@ localparam [2:0]
     STATE_IDLE = 3'd0,
     STATE_PREAMBLE = 3'd1,
     STATE_PAYLOAD = 3'd2,
-    STATE_LAST = 3'd3,
-    STATE_PAD = 3'd4,
-    STATE_FCS = 3'd5,
-    STATE_WAIT_END = 3'd6,
-    STATE_IFG = 3'd7;
+    STATE_LAST = 3'd3,      // last byte of payload
+    STATE_PAD = 3'd4,       // padding bytes
+    STATE_FCS = 3'd5,       // frame-check sequence
+    STATE_WAIT_END = 3'd6,  // state for waiting for end of a frame that went bad during transmission
+    STATE_IFG = 3'd7;       // inter-frame gap state
+// This FSM is pretty messy and could do with refactoring but atm it works so I'm not going to touch it
 
 reg [2:0] state_reg, state_next;
 
@@ -107,7 +108,7 @@ reg gmii_tx_en_reg, gmii_tx_en_next;
 reg gmii_tx_er_reg, gmii_tx_er_next;
 
 reg s_axis_tready_reg, s_axis_tready_next;
-reg [31:0] crc_state, fcs_next;   
+reg [31:0] crc_state, fcs_next;
 
 wire [31:0] crc_next;
 
@@ -230,7 +231,8 @@ always @* begin
                         s_axis_tready_next = !s_axis_tready_reg;
                         if (s_axis_tuser) begin
                             gmii_tx_er_next = 1'b1;
-                            frame_ptr_next = 1'b0;
+                            frame_ptr_next = 16'b0;
+                            ifg_next = 8'b0;
                             state_next = STATE_IFG;
                         end else begin
                             state_next = STATE_LAST;
@@ -290,10 +292,10 @@ always @* begin
                 frame_ptr_next = frame_ptr_reg + 16'd1;
 
                 case (frame_ptr_reg)
-                    2'd0: gmii_txd_next = ~crc_state[7:0];
-                    2'd1: gmii_txd_next = ~crc_state[15:8];
-                    2'd2: gmii_txd_next = ~crc_state[23:16];
-                    2'd3: gmii_txd_next = ~crc_state[31:24];
+                    16'd0: gmii_txd_next = ~crc_state[7:0];
+                    16'd1: gmii_txd_next = ~crc_state[15:8];
+                    16'd2: gmii_txd_next = ~crc_state[23:16];
+                    16'd3: gmii_txd_next = ~crc_state[31:24];
                     default:;
                 endcase
                 gmii_tx_en_next = 1'b1;
@@ -303,6 +305,7 @@ always @* begin
                 end else begin
                     frame_ptr_next = 16'd0;
                     fcs_next = crc_state;
+                    ifg_next = 8'b0;
                     state_next = STATE_IFG;
                 end
             end
@@ -319,7 +322,7 @@ always @* begin
                     if (s_axis_tlast) begin
                         s_axis_tready_next = 1'b0;
                         ifg_next = 8'b0;
-                            state_next = STATE_IFG;
+                        state_next = STATE_IFG;
                     end else begin
                         state_next = STATE_WAIT_END;
                     end
@@ -329,6 +332,20 @@ always @* begin
             end
             STATE_IFG: begin
                 // send IFG
+
+                // Somewhere around reading this piece of code, I found myself
+                // myself wondering "should the tx_en be asserted during the IPG?"
+                // It's referred to as IFG here but IPG is the proper term (inter-packet gap, not inter-frame gap)
+                // The language in most sources is unclear on this point, for example:
+                // "After a packet has been sent, transmitters are required to transmit a minimum of 96 bits (12 octets) of idle line state before transmitting the next packet"
+                // To me, 'required to transmit' would suggest that we SHOULD be asserting tx_en
+                // the RMGII standard doesn't say anything about it since it's only concerned with the data
+                // that is transferred and not the nature of the data.
+                // I had to do quite a lot of digging before getting to page 6402 of IEEE 802.3-2022 (that's Annex 36A.4) to find the
+                // answer attached to an example. The answer is no. TX_EN should NOT be asserted during the IPG.axis_gmii_tx
+                // the original creator of this MAC had it right, fair play Alex
+                // Let this comment spare anyone else the nightmare of reading IEEE standards
+                // - @thomas6785
 
                 reset_crc = 1'b1;
 
@@ -364,6 +381,7 @@ always @(posedge clk) begin
 
         crc_state <= 32'hFFFFFFFF;
         fcs_reg <= 32'hFFFFFFFF;
+        ifg_reg <= 8'b0; // possible bug: if you send a packet and immediately reset then send another, the IFG can be skipped
     end else begin
         state_reg <= state_next;
 

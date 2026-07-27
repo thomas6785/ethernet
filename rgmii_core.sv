@@ -29,7 +29,8 @@ THE SOFTWARE.
  */
 module rgmii_core #
 (
-    parameter TARGET = "XILINX"
+    // target (e.g. Xilinx FPGA, generic model, etc.)
+    parameter TARGET = "SIM" // "SIM", "GENERIC", "XILINX", or "ALTERA"
 )
 (
     /*
@@ -50,24 +51,22 @@ module rgmii_core #
     output wire [3:0]  phy_txd,
     output wire        phy_tx_ctl,
     output wire        phy_reset_n,
-    input wire         phy_int_n,
-    input wire         phy_pme_n,
     output wire        mac_gmii_tx_en,
 
        /*
         * AXI input
         */
- 
+
     input wire         tx_axis_tvalid,
     input wire         tx_axis_tlast,
     input wire [7:0]   tx_axis_tdata,
     output wire        tx_axis_tready,
     input wire         tx_axis_tuser,
-   
+
        /*
         * AXI output
         */
- 
+
     output wire [7:0]  rx_axis_tdata,
     output wire        rx_axis_tvalid,
     output wire        rx_axis_tlast,
@@ -79,63 +78,49 @@ module rgmii_core #
 
     output wire [31:0] rx_fcs_reg,
     output wire [31:0] tx_fcs_reg
-
 );
 
 assign phy_reset_n = !rst;
 
-eth_mac_1g_rgmii_fifo #(
+eth_mac_1g_rgmii_wrapper #(
     .TARGET(TARGET),
     .IODDR_STYLE("IODDR"),
     .CLOCK_INPUT_STYLE("BUFR"),
-    .USE_CLK90("TRUE"),
-    .ENABLE_PADDING(1),
-    .MIN_FRAME_LENGTH(64),
-    .TX_FIFO_ADDR_WIDTH(12),
-    .TX_FRAME_FIFO(1),
-    .RX_FIFO_ADDR_WIDTH(12),
-    .RX_FRAME_FIFO(1)
+    .USE_CLK90("TRUE")
 )
 eth_mac_inst (
-    .gtx_clk(clk),
-    .gtx_clk90(clk90),
-    .gtx_rst(rst),
-    .logic_clk(clk),
-    .logic_rst(rst),
+    .gtx_clk                (clk),
+    .gtx_clk90              (clk90),
+    .gtx_rst                (rst),
+    .logic_clk              (clk),
+    .logic_rst              (rst),
 
-    .tx_axis_tdata(tx_axis_tdata),
-    .tx_axis_tvalid(tx_axis_tvalid),
-    .tx_axis_tready(tx_axis_tready),
-    .tx_axis_tlast(tx_axis_tlast),
-    .tx_axis_tuser(tx_axis_tuser),
+    .tx_axis_tdata          (tx_axis_tdata),
+    .tx_axis_tvalid         (tx_axis_tvalid),
+    .tx_axis_tready         (tx_axis_tready),
+    .tx_axis_tlast          (tx_axis_tlast),
+    .tx_axis_tuser          (tx_axis_tuser),
 
-    .rx_axis_tdata(rx_axis_tdata),
-    .rx_axis_tvalid(rx_axis_tvalid),
-    .rx_axis_tready(1'b1),
-    .rx_axis_tlast(rx_axis_tlast),
-    .rx_axis_tuser(rx_axis_tuser),
+    .rx_axis_tdata          (rx_axis_tdata),
+    .rx_axis_tvalid         (rx_axis_tvalid),
+    .rx_axis_tlast          (rx_axis_tlast),
+    .rx_axis_tuser          (rx_axis_tuser),
 
-    .rgmii_rx_clk(phy_rx_clk),
-    .rgmii_rxd(phy_rxd),
-    .rgmii_rx_ctl(phy_rx_ctl),
-    .rgmii_tx_clk(phy_tx_clk),
-    .rgmii_txd(phy_txd),
-    .rgmii_tx_ctl(phy_tx_ctl),
-    .mac_gmii_tx_en(mac_gmii_tx_en),
+    .rgmii_rx_clk           (phy_rx_clk),
+    .rgmii_rxd              (phy_rxd),
+    .rgmii_rx_ctl           (phy_rx_ctl),
+    .rgmii_tx_clk           (phy_tx_clk),
+    .rgmii_txd              (phy_txd),
+    .rgmii_tx_ctl           (phy_tx_ctl),
+    .mac_gmii_tx_en         (mac_gmii_tx_en),
 
-    .tx_fifo_overflow(),
-    .tx_fifo_bad_frame(),
-    .tx_fifo_good_frame(),
-    .rx_error_bad_frame(),
-    .rx_error_bad_fcs(),
-    .rx_fcs_reg(rx_fcs_reg),
-    .tx_fcs_reg(tx_fcs_reg),
-    .rx_fifo_overflow(),
-    .rx_fifo_bad_frame(),
-    .rx_fifo_good_frame(),
-    .speed(),
+    .rx_error_bad_frame     (),
+    .rx_error_bad_fcs       (),
+    .rx_fcs_reg             (rx_fcs_reg), // frame check sequence value
+    .tx_fcs_reg             (tx_fcs_reg), // frame check sequence value
+    .speed                  (),
 
-    .ifg_delay(12)
+    .ifg_delay              (12) // inter-frame gap is required to be 12 bytes or more per Ethernet standards
 );
 
 endmodule
