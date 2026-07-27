@@ -58,7 +58,7 @@ next state computation, shifting DATA_WIDTH bits per pass through the module.  I
 is XORed with LFSR feedback path, tie data_in to zero if this is not required.
 
 Works in two parts: statically computes a set of bit masks, then uses these bit masks to
-select bits for XORing to compute the next state.  
+select bits for XORing to compute the next state.
 
 Ports:
 
@@ -159,7 +159,7 @@ DATA_WIDTH
 
 Specify width of input and output data bus.  The module will perform one shift per input
 data bit, so if the input data bus is not required tie data_in to zero and set DATA_WIDTH
-to the required number of shifts per clock cycle.  
+to the required number of shifts per clock cycle.
 
 STYLE
 
@@ -204,7 +204,7 @@ reg [DATA_WIDTH-1:0] output_mask_data[DATA_WIDTH-1:0];
 reg [LFSR_WIDTH-1:0] state_val;
 reg [DATA_WIDTH-1:0] data_val;
 
-integer i, j, k;
+integer i, j;
 
 initial begin
     // init bit masks
@@ -233,7 +233,7 @@ initial begin
 
             // add XOR inputs from correct indicies
             for (j = 1; j < LFSR_WIDTH; j = j + 1) begin
-                if (LFSR_POLY & (1 << j)) begin
+                if (|(LFSR_POLY & (1 << j))) begin
                     state_val = lfsr_mask_state[j-1] ^ state_val;
                     data_val = lfsr_mask_data[j-1] ^ data_val;
                 end
@@ -288,7 +288,7 @@ initial begin
 
             // add XOR inputs at correct indicies
             for (j = 1; j < LFSR_WIDTH; j = j + 1) begin
-                if (LFSR_POLY & (1 << j)) begin
+                if (|(LFSR_POLY & (1 << j))) begin
                     lfsr_mask_state[j] = lfsr_mask_state[j] ^ state_val;
                     lfsr_mask_data[j] = lfsr_mask_data[j] ^ data_val;
                 end
@@ -352,23 +352,19 @@ initial begin
     // end
 end
 
-// synthesis translate_off
-`define SIMULATION
-// synthesis translate_on
-
-`ifdef SIMULATION
+`ifndef SYNTHESIS
 // "AUTO" style is "REDUCTION" for faster simulation
-parameter STYLE_INT = (STYLE == "AUTO") ? "REDUCTION" : STYLE;
+localparam STYLE_INT = (STYLE == "AUTO") ? "REDUCTION" : STYLE;
 `else
 // "AUTO" style is "LOOP" for better synthesis result
-parameter STYLE_INT = (STYLE == "AUTO") ? "LOOP" : STYLE;
+localparam STYLE_INT = (STYLE == "AUTO") ? "LOOP" : STYLE;
 `endif
 
 genvar n;
 
 generate
 
-if (STYLE_INT == "REDUCTION") begin
+if (STYLE_INT == "REDUCTION") begin : gen_reduction_style
 
     // use Verilog reduction operator
     // fast in iverilog
@@ -376,14 +372,14 @@ if (STYLE_INT == "REDUCTION") begin
     // slightly smaller than generated code with Quartus
     // --> better for simulation
 
-    for (n = 0; n < LFSR_WIDTH; n = n + 1) begin : loop1
+    for (n = 0; n < LFSR_WIDTH; n = n + 1) begin : gen_loop1
         assign state_out[n] = ^{(state_in & lfsr_mask_state[n]), (data_in & lfsr_mask_data[n])};
     end
-    for (n = 0; n < DATA_WIDTH; n = n + 1) begin : loop2
+    for (n = 0; n < DATA_WIDTH; n = n + 1) begin : gen_loop2
         assign data_out[n] = ^{(state_in & output_mask_state[n]), (data_in & output_mask_data[n])};
     end
 
-end else if (STYLE_INT == "LOOP") begin
+end else if (STYLE_INT == "LOOP") begin : gen_loop_style
 
     // use nested loops
     // very slow in iverilog
@@ -426,7 +422,7 @@ end else if (STYLE_INT == "LOOP") begin
         end
     end
 
-end else begin
+end else begin : gen_unknown_style
 
     initial begin
         $error("Error: unknown style setting!");

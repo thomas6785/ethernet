@@ -170,7 +170,7 @@ always @(posedge gtx_clk) begin
         speed_reg <= 2'b10;
     end else begin
         rx_speed_count_1 <= rx_speed_count_1 + 1;
-        
+
         if (rx_prescale_sync_2 ^ rx_prescale_sync_3) begin
             rx_speed_count_2 <= rx_speed_count_2 + 1;
         end
@@ -186,7 +186,7 @@ always @(posedge gtx_clk) begin
             // prescaled count overflow - 100M or 1000M
             rx_speed_count_1 <= 0;
             rx_speed_count_2 <= 0;
-            if (rx_speed_count_1[6:5]) begin
+            if (|rx_speed_count_1[6:5]) begin
                 // large reference count - 100M
                 speed_reg <= 2'b01;
             end else begin
